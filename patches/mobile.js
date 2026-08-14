@@ -169,34 +169,24 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
  * 左/右/下边界 clamp 在 [MARGIN, 视口-MARGIN] 内保证整体不出屏；
  * z-index:2147483647 提到最上层盖过一切内容；max-width(视口-24px) +
  * max-height:60vh + overflow-y:auto 约束尺寸。
- * containing block 兜底：仅当祖先链（parentElement 向上到 body，含 body）
- * 存在会改变 fixed 定位基准的属性（transform/perspective/contain/filter/
- * backdrop-filter/will-change 非默认值）时，才实测偏移补偿；否则直接写
- * 视口坐标（这正是"根据屏幕大小决定坐标"）。 */
+ * containing block 兜底：无条件实测偏移补偿——视口作为 containing block 时
+ * 偏移为 (0,0)（等价于直接写视口坐标），存在 transform/contain/filter/zoom
+ * 等 fixed-CB 祖先时偏移即该祖先的视口偏移。不做祖先属性检测，避免漏检把
+ * 坐标按错误的参照系解释导致菜单被推出屏幕。 */
 (function () {
   "use strict";
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 5, MARGIN = 12, raf = 0;
-  var FIXED_CB_PROPS = ["transform", "perspective", "contain", "filter", "backdrop-filter", "will-change"];
   function isVisible(el) {
     if (!el || el.getClientRects().length === 0) return false;
     var cs = window.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
   }
-  /* 祖先链上是否存在会改变 fixed containing block 的属性（el 向上到 body，含 body） */
-  function hasFixedCBAncestor(el) {
-    var n = el;
-    while (n && n.nodeType === 1 && n !== document.documentElement) {
-      var cs = window.getComputedStyle(n);
-      for (var i = 0; i < FIXED_CB_PROPS.length; i++) {
-        var v = cs.getPropertyValue(FIXED_CB_PROPS[i]);
-        if (v && v !== "none" && v !== "auto") return true;
-      }
-      n = n.parentElement;
-    }
-    return false;
-  }
-  /* 实测 containing block 相对视口的偏移：临时归零后读出渲染坐标即得基准点 */
+  /* 实测 containing block 相对视口的偏移：临时归零后读出渲染坐标即得基准点。
+   * 无条件使用：视口作为 containing block 时偏移为 (0,0)（等于直接写视口坐标），
+   * 存在 transform/contain/filter/zoom 等 fixed-CB 祖先时偏移即该祖先的视口偏移。
+   * 绝不按"检测祖先属性"来决定是否补偿——漏检会让坐标被按错误的参照系解释，
+   * 面板/下拉被推到屏幕外（曾导致"不显示"）。 */
   function cbOffset(menu) {
     var pl = menu.style.getPropertyValue("left"), pt = menu.style.getPropertyValue("top"), pT = menu.style.transform;
     menu.style.setProperty("left", "0px", "important");
@@ -230,16 +220,12 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     var vTop = r.bottom + GAP;                      /* 触发器下方 */
     if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
     if (vTop < MARGIN) vTop = MARGIN;
-    if (hasFixedCBAncestor(menu.parentElement)) {
-      var cb = cbOffset(menu);                      /* 仅 fixed-CB 祖先存在时才补偿 */
-      menu.style.setProperty("left", (vLeft - cb.left) + "px", "important");
-      menu.style.setProperty("top", (vTop - cb.top) + "px", "important");
-    } else {
-      menu.style.setProperty("left", vLeft + "px", "important");   /* 直接写视口坐标 */
-      menu.style.setProperty("top", vTop + "px", "important");
-    }
+    var cb = cbOffset(menu);                        /* 无条件实测补偿（视口 CB 时偏移为 0） */
+    menu.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+    menu.style.setProperty("top", (vTop - cb.top) + "px", "important");
   }
-  function tick() { raf = 0; place(); if (isVisible(document.querySelector(".h8S2Va_menu"))) raf = requestAnimationFrame(tick); }
+  /* 元素在 DOM 中就持续循环定位（不依赖 isVisible，避免首帧 0 尺寸时死锁停摆） */
+  function tick() { raf = 0; place(); if (document.querySelector(".h8S2Va_menu") !== null) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
   try {
     var mo = new MutationObserver(wake);
@@ -260,31 +246,20 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
  * max-width(视口-24px)（保证不超右边界）。
  * 坐标按视口计算：右缘对齐触发器右缘、优先放在触发器上方，上方放不下翻到
  * 下方，左/右/上/下都 clamp 在 [MARGIN, 视口-MARGIN] 内；
- * 仅当祖先链存在 fixed-CB 属性时才用实测偏移补偿，否则直接写视口坐标
- * （这正是用户建议的"显示在最上层，根据屏幕大小决定其相对坐标"）。 */
+ * containing block 无条件实测补偿（视口 CB 时偏移为 0，等价于直接写视口
+ * 坐标；fixed-CB 祖先存在时按其实测偏移补偿，不做属性检测以免漏检推飞）。 */
 (function () {
   "use strict";
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 8, MARGIN = 12, raf = 0;
-  var FIXED_CB_PROPS = ["transform", "perspective", "contain", "filter", "backdrop-filter", "will-change"];
   function isVisible(el) {
     if (!el || el.getClientRects().length === 0) return false;
     var cs = window.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
   }
-  /* 祖先链上是否存在会改变 fixed containing block 的属性（el 向上到 body，含 body） */
-  function hasFixedCBAncestor(el) {
-    var n = el;
-    while (n && n.nodeType === 1 && n !== document.documentElement) {
-      var cs = window.getComputedStyle(n);
-      for (var i = 0; i < FIXED_CB_PROPS.length; i++) {
-        var v = cs.getPropertyValue(FIXED_CB_PROPS[i]);
-        if (v && v !== "none" && v !== "auto") return true;
-      }
-      n = n.parentElement;
-    }
-    return false;
-  }
+  /* 实测 containing block 相对视口的偏移：无条件使用（视口 CB 时偏移为 (0,0)，
+   * 存在 fixed-CB 祖先时偏移即该祖先的视口偏移）。不做属性检测——漏检会让
+   * 坐标被按错误的参照系解释，面板被推到屏幕外导致"不显示"。 */
   function cbOffset(panel) {
     var pl = panel.style.getPropertyValue("left"), pt = panel.style.getPropertyValue("top"), pT = panel.style.transform;
     panel.style.setProperty("left", "0px", "important");
@@ -319,16 +294,12 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     if (vTop < MARGIN) vTop = r.bottom + GAP;       /* 上方放不下则翻到下方 */
     if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
     if (vTop < MARGIN) vTop = MARGIN;
-    if (hasFixedCBAncestor(panel.parentElement)) {
-      var cb = cbOffset(panel);                     /* 仅 fixed-CB 祖先存在时才补偿 */
-      panel.style.setProperty("left", (vLeft - cb.left) + "px", "important");
-      panel.style.setProperty("top", (vTop - cb.top) + "px", "important");
-    } else {
-      panel.style.setProperty("left", vLeft + "px", "important");       /* 直接写视口坐标 */
-      panel.style.setProperty("top", vTop + "px", "important");
-    }
+    var cb = cbOffset(panel);                       /* 无条件实测补偿（视口 CB 时偏移为 0） */
+    panel.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+    panel.style.setProperty("top", (vTop - cb.top) + "px", "important");
   }
-  function tick() { raf = 0; place(); if (isVisible(document.querySelector(".JObwrW_panel"))) raf = requestAnimationFrame(tick); }
+  /* 元素在 DOM 中就持续循环定位（不依赖 isVisible，避免首帧 0 尺寸时死锁停摆） */
+  function tick() { raf = 0; place(); if (document.querySelector(".JObwrW_panel") !== null) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
   try {
     var mo = new MutationObserver(wake);
