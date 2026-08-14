@@ -165,7 +165,7 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
  * .h8S2Va_root 的 rect 下方（贴合父元素，不是底部弹层）。 */
 (function () {
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
-  var GAP = 5, MARGIN = 8, raf = 0;
+  var GAP = 5, MARGIN = 12, raf = 0;
   function isVisible(el) {
     if (!el || el.getClientRects().length === 0) return false;
     var cs = window.getComputedStyle(el);
@@ -178,6 +178,7 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     if (!root) return;
     var r = root.getBoundingClientRect();
     var m = menu.getBoundingClientRect();
+    if (m.width === 0 || m.height === 0) return; /* 宽度未就绪时跳过，等下一帧 */
     var vw = window.innerWidth, vh = window.innerHeight;
     var left = r.left, top = r.bottom + GAP;
     if (left + m.width > vw - MARGIN) left = Math.max(MARGIN, vw - MARGIN - m.width);

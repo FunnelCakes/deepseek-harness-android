@@ -151,12 +151,15 @@
   }
 
   /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，但仍吸附在触发器
-     下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处） */
+     下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处）。
+     宽度自适应内容但受 max-width 约束，避免超出屏幕右边界。 */
   .h8S2Va_menu {
     position: fixed !important;
     left: auto !important;
     top: auto !important;
-    max-width: calc(100vw - 16px) !important;
+    width: auto !important;
+    min-width: 200px !important;
+    max-width: calc(100vw - 32px) !important;
     max-height: 60vh !important;
     overflow: auto !important;
     z-index: 100 !important;
