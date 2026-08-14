@@ -1,0 +1,140 @@
+/* 竖屏手机适配覆盖层（Termux/Android）
+ * 由 apply-frontend.sh 注入到 dsh-web-frontend/dist/index.html 的
+ * <style id="dsh-mobile-adapt"> 中。类名来自 dsh 0.1.0-rc.6 构建，升级后可能变化。 */
+@media (max-width: 480px) {
+  /* 侧栏展开 = 覆盖式抽屉，不再把对话区挤成窄条 */
+  div[data-details-collapsed]:not([data-sidebar-collapsed]) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  div[data-details-collapsed]:not([data-sidebar-collapsed]) > div:first-child {
+    position: absolute !important;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(280px, 84vw) !important;
+    z-index: 40;
+    box-shadow: 0 0 28px rgba(0, 0, 0, .45);
+  }
+  div[data-details-collapsed]:not([data-sidebar-collapsed]) > [data-side] {
+    display: none;
+  }
+  div[data-details-collapsed]:not([data-sidebar-collapsed]) div[data-shell-overlay] {
+    z-index: 39;
+  }
+  div[data-details-collapsed]:not([data-sidebar-collapsed]) div[data-shell-overlay]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(0, 0, 0, .45);
+    pointer-events: auto; /* 遮罩可点击：点击空白区关闭抽屉 */
+  }
+
+  /* 触控目标 ≥ 44px */
+  .uV2eYG_primary,
+  .uV2eYG_add,
+  .uV2eYG_select,
+  .Md3f7G_toBottom {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 输入区 safe-area 避让 */
+  .wSkVaW_composerSeat {
+    padding-bottom: max(env(safe-area-inset-bottom), 10px) !important;
+  }
+
+  /* 下拉菜单不出屏 */
+  ._list_19372_8 {
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  /* 辅助字号微调 */
+  .Md3f7G_hint {
+    font-size: 13px;
+  }
+
+  /* 模型选择器：加大触控与留白，避免文本/icon 堆叠 */
+  ._7KE1Ra_trigger {
+    height: 36px !important;
+    max-width: 62vw !important;
+    gap: 6px !important;
+    padding: 0 10px 0 12px !important;
+    font-size: 14px !important;
+  }
+  ._7KE1Ra_triggerLabel {
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+  }
+  ._7KE1Ra_option {
+    min-height: 44px !important;
+  }
+  ._7KE1Ra_menu {
+    max-height: 50vh !important;
+  }
+
+  /* 作曲栏工具栏移动端重排：+号/盾牌 与 发送按钮同排(发送靠右)，模型选择器独立第二行 */
+  .uV2eYG_row {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  .uV2eYG_tools {
+    flex-shrink: 0 !important;
+  }
+  .uV2eYG_trailing {
+    display: contents !important;
+  }
+  .uV2eYG_primary {
+    margin-left: auto !important;
+  }
+  ._7KE1Ra_root {
+    order: 99 !important;
+    flex-basis: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 侧边栏切换按钮：展开态加大触控目标 */
+  .hHd-Xa_root:not(.hHd-Xa_collapsed) .hHd-Xa_toggle {
+    width: auto !important;
+    padding: 0 10px !important;
+    gap: 6px !important;
+  }
+
+  /* 设置面板：手机全屏化，导航栏变顶部横排，内容独占剩余空间 */
+  .VOzbGW_overlay {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+  }
+  .VOzbGW_panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    flex-direction: column !important;
+  }
+  .VOzbGW_nav {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    overflow-x: auto !important;
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+  }
+  .VOzbGW_navList {
+    flex-direction: row !important;
+    gap: 4px !important;
+  }
+  .VOzbGW_navCell {
+    min-width: max-content !important;
+  }
+  .VOzbGW_content {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+}

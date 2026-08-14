@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepSeek Harness for Android/Termux</title>
+<style>
+  :root { --bg:#0f1420; --card:#171d2b; --fg:#e8eaf0; --mut:#9aa3b5; --acc:#4f8cff; --br:#262e40; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.7 -apple-system,"Segoe UI",Roboto,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:860px; margin:0 auto; padding:24px 18px 64px; }
+  header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--br); padding-bottom:16px; margin-bottom:20px; }
+  h1 { font-size:22px; margin:0; }
+  .toggle { display:flex; border:1px solid var(--br); border-radius:999px; overflow:hidden; }
+  .toggle button { border:0; background:transparent; color:var(--mut); font:inherit; padding:6px 18px; cursor:pointer; }
+  .toggle button.on { background:var(--acc); color:#fff; }
+  h2 { font-size:17px; margin:26px 0 8px; color:#fff; border-left:3px solid var(--acc); padding-left:8px; }
+  pre { background:#0b0f18; border:1px solid var(--br); border-radius:10px; padding:12px 14px; overflow-x:auto; font-size:13px; }
+  code { background:#0b0f18; border-radius:4px; padding:1px 5px; font-size:13px; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  th,td { border:1px solid var(--br); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--card); }
+  a { color:var(--acc); }
+  .warn { background:rgba(79,140,255,.08); border:1px solid var(--br); border-radius:10px; padding:10px 14px; margin:12px 0; }
+  .lang[hidden] { display:none; }
+  footer { margin-top:40px; color:var(--mut); font-size:13px; border-top:1px solid var(--br); padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>DeepSeek Harness · Android/Termux</h1>
+    <div class="toggle" role="tablist" aria-label="Language">
+      <button id="btn-zh" class="on" onclick="setLang('zh')">中文</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+  </header>
+
+  <!-- ============================ 中文 ============================ -->
+  <div id="lang-zh" class="lang">
+    <div class="warn">⚠️ <b>需要 Termux</b>：本方案必须在 <b>Android 手机的 Termux 终端</b> 里安装运行。</div>
+
+    <h2>这是什么</h2>
+    <p>在 Android 手机上原生运行 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>（<code>@deepseek-ai/dsh</code>，DeepSeek 官方的 agent harness，类 Claude Code）。通过 <b>Web UI</b>（<code>http://127.0.0.1:3080</code>）在手机浏览器里使用，agent 可在手机上真实执行 bash 命令。</p>
+
+    <h2>一、安装 Termux</h2>
+    <p>❗ 不要用 Google Play 版本（已过时）。官方渠道：</p>
+    <ul>
+      <li><b>F-Droid（推荐）</b>：<a href="https://f-droid.org/en/packages/com.termux/">f-droid.org/en/packages/com.termux</a></li>
+      <li><b>GitHub Releases</b>：<a href="https://github.com/termux/termux-app/releases">github.com/termux/termux-app/releases</a></li>
+    </ul>
+    <p>打开 Termux 后执行 <code>pkg update -y</code>（可选 <code>termux-setup-storage</code> 授权存储）。</p>
+
+    <h2>二、一键安装</h2>
+    <pre>pkg install -y git
+git clone https://github.com/FunnelCakes/deepseek-harness-android.git
+cd deepseek-harness-android
+bash setup.sh</pre>
+
+    <h2>三、使用</h2>
+    <pre>bash ~/dsh/start_dsh.sh   # 启动并自动拉起浏览器
+bash ~/dsh/stop_dsh.sh    # 停止</pre>
+    <p>打开 <code>http://127.0.0.1:3080</code>，在 <b>Models</b> 页面填入你的 <b>DeepSeek API Key</b>（存于 <code>~/.dsh/.credentials.yaml</code>，0600 权限），即可开始。</p>
+
+    <h2>四、setup.sh 自动修复的 Android 兼容问题</h2>
+    <table>
+      <tr><th>问题</th><th>现象</th><th>修复</th></tr>
+      <tr><td>node-pty 无法编译</td><td><code>Undefined variable android_ndk_path</code></td><td>修补 node-gyp 缓存 <code>common.gypi</code></td></tr>
+      <tr><td>koffi 无法编译</td><td><code>statx</code> 相关 <code>__u32</code> 编译错误</td><td><code>-target aarch64-linux-android30</code></td></tr>
+      <tr><td>npm 拦截构建脚本</td><td>node-pty/koffi 无产物</td><td><code>--allow-scripts</code> 放行</td></tr>
+      <tr><td><code>link()</code> 被禁</td><td>会话/附件保存报 <code>EACCES</code></td><td>改为 <code>rename()</code>（原子、同目录）</td></tr>
+      <tr><td>PTY 终端检测失败</td><td><code>unsupported on platform android</code></td><td>subprocess 把 android 视同 linux</td></tr>
+      <tr><td>sharp 无法加载</td><td><code>Could not load sharp module</code></td><td>安装 <code>@img/sharp-wasm32</code> wasm 回退</td></tr>
+      <tr><td>HMR 启动崩溃</td><td><code>--expose-internals is required</code></td><td>包装脚本加 <code>--expose-internals</code></td></tr>
+      <tr><td>bash 工具不可用</td><td><code>SANDBOX_UNAVAILABLE</code></td><td>权限模式设 <code>danger-full-access</code></td></tr>
+      <tr><td>前端不适配竖屏</td><td>桌面布局、触控目标小等</td><td><code>apply-frontend.sh</code> 注入移动端 CSS/JS</td></tr>
+    </table>
+
+    <h2>五、安全说明</h2>
+    <ul>
+      <li>服务只监听 <code>127.0.0.1</code>（本机），不走局域网。</li>
+      <li>API Key 存 <code>~/.dsh/.credentials.yaml</code>（0600），不进日志、不进进程环境。</li>
+      <li><code>danger-full-access</code> 关闭了进程沙箱（Android 无 bwrap/landlock 替代），agent 可执行任意命令——仅建议个人设备使用。</li>
+      <li>升级 dsh 或 Node 后需重跑 <code>setup.sh</code>。</li>
+    </ul>
+
+    <h2>六、常见问题</h2>
+    <ul>
+      <li><b>页面白屏/打不开</b>：确认在 Termux 环境；看日志 <code>~/dsh/storage/dsh.log</code>。</li>
+      <li><b><code>AbortSignal.any is not a function</code></b>：浏览器过旧，<code>apply-frontend.sh</code> 已注入 polyfill。</li>
+      <li><b>模型没反应</b>：检查 Models 页 API Key 与 <code>~/.dsh/.credentials.yaml</code>。</li>
+      <li><b>换机/重装</b>：重跑 <code>bash setup.sh</code>。</li>
+    </ul>
+
+    <h2>参考</h2>
+    <ul>
+      <li><a href="https://github.com/deepseek-ai/deepseek-harness">deepseek-ai/deepseek-harness</a></li>
+      <li><a href="https://github.com/deepseek-ai/deepseek-harness/discussions/136">deepseek-harness Discussion #136 — Android/Termux 部署</a></li>
+      <li><a href="https://wiki.termux.com/">Termux Wiki</a></li>
+    </ul>
+  </div>
+
+  <!-- ============================ English ============================ -->
+  <div id="lang-en" class="lang" hidden>
+    <div class="warn">⚠️ <b>Termux required</b>: install and run this inside the <b>Termux terminal on your Android phone</b>.</div>
+
+    <h2>What is this</h2>
+    <p>Run <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (<code>@deepseek-ai/dsh</code>, DeepSeek's official agent harness, Claude Code–like) natively on Android. Use it through the <b>Web UI</b> at <code>http://127.0.0.1:3080</code> in your mobile browser; the agent can run real bash commands on the phone.</p>
+
+    <h2>1. Install Termux</h2>
+    <p>❗ Do NOT use the Google Play version (outdated). Official sources:</p>
+    <ul>
+      <li><b>F-Droid (recommended)</b>: <a href="https://f-droid.org/en/packages/com.termux/">f-droid.org/en/packages/com.termux</a></li>
+      <li><b>GitHub Releases</b>: <a href="https://github.com/termux/termux-app/releases">github.com/termux/termux-app/releases</a></li>
+    </ul>
+    <p>After opening Termux, run <code>pkg update -y</code> (optionally <code>termux-setup-storage</code>).</p>
+
+    <h2>2. One-click setup</h2>
+    <pre>pkg install -y git
+git clone https://github.com/FunnelCakes/deepseek-harness-android.git
+cd deepseek-harness-android
+bash setup.sh</pre>
+
+    <h2>3. Usage</h2>
+    <pre>bash ~/dsh/start_dsh.sh   # start & auto-open browser
+bash ~/dsh/stop_dsh.sh    # stop</pre>
+    <p>Open <code>http://127.0.0.1:3080</code>, enter your <b>DeepSeek API Key</b> in the <b>Models</b> page (stored at <code>~/.dsh/.credentials.yaml</code>, mode 0600), and start chatting.</p>
+
+    <h2>4. Android issues auto-fixed by setup.sh</h2>
+    <table>
+      <tr><th>Issue</th><th>Symptom</th><th>Fix</th></tr>
+      <tr><td>node-pty fails to build</td><td><code>Undefined variable android_ndk_path</code></td><td>patch node-gyp cache <code>common.gypi</code></td></tr>
+      <tr><td>koffi fails to build</td><td><code>statx</code> <code>__u32</code> compile error</td><td><code>-target aarch64-linux-android30</code></td></tr>
+      <tr><td>npm blocks build scripts</td><td>no node-pty/koffi output</td><td>allow via <code>--allow-scripts</code></td></tr>
+      <tr><td><code>link()</code> blocked</td><td><code>EACCES</code> saving sessions/attachments</td><td>use <code>rename()</code> (atomic, same-dir)</td></tr>
+      <tr><td>PTY terminal detection fails</td><td><code>unsupported on platform android</code></td><td>treat android as linux in subprocess</td></tr>
+      <tr><td>sharp fails to load</td><td><code>Could not load sharp module</code></td><td>install <code>@img/sharp-wasm32</code> wasm fallback</td></tr>
+      <tr><td>HMR crashes on start</td><td><code>--expose-internals is required</code></td><td>wrapper script adds <code>--expose-internals</code></td></tr>
+      <tr><td>bash tool unavailable</td><td><code>SANDBOX_UNAVAILABLE</code></td><td>permission mode <code>danger-full-access</code></td></tr>
+      <tr><td>Frontend not mobile-ready</td><td>desktop layout, small touch targets</td><td><code>apply-frontend.sh</code> injects mobile CSS/JS</td></tr>
+    </table>
+
+    <h2>5. Security notes</h2>
+    <ul>
+      <li>The service listens only on <code>127.0.0.1</code> (local, not LAN).</li>
+      <li>API Key is stored at <code>~/.dsh/.credentials.yaml</code> (0600), never in logs or process env.</li>
+      <li><code>danger-full-access</code> disables the process sandbox (no bwrap/landlock on Android); the agent can run any command — personal devices only.</li>
+      <li>Re-run <code>setup.sh</code> after upgrading dsh or Node.</li>
+    </ul>
+
+    <h2>6. FAQ</h2>
+    <ul>
+      <li><b>Blank screen / cannot open</b>: make sure it's Termux; check <code>~/dsh/storage/dsh.log</code>.</li>
+      <li><b><code>AbortSignal.any is not a function</code></b>: old browser; <code>apply-frontend.sh</code> injects a polyfill.</li>
+      <li><b>Model not responding</b>: check the API Key in Models page and <code>~/.dsh/.credentials.yaml</code>.</li>
+      <li><b>Reinstall / new device</b>: re-run <code>bash setup.sh</code>.</li>
+    </ul>
+
+    <h2>References</h2>
+    <ul>
+      <li><a href="https://github.com/deepseek-ai/deepseek-harness">deepseek-ai/deepseek-harness</a></li>
+      <li><a href="https://github.com/deepseek-ai/deepseek-harness/discussions/136">deepseek-harness Discussion #136 — Android/Termux deployment</a></li>
+      <li><a href="https://wiki.termux.com/">Termux Wiki</a></li>
+    </ul>
+  </div>
+
+  <footer>MIT License · <a href="https://github.com/FunnelCakes/deepseek-harness-android">github.com/FunnelCakes/deepseek-harness-android</a></footer>
+</div>
+
+<script>
+  function setLang(l) {
+    document.getElementById('lang-zh').hidden = (l !== 'zh');
+    document.getElementById('lang-en').hidden = (l !== 'en');
+    document.getElementById('btn-zh').classList.toggle('on', l === 'zh');
+    document.getElementById('btn-en').classList.toggle('on', l === 'en');
+    try { localStorage.setItem('dsh-lang', l); } catch (e) {}
+    document.documentElement.lang = (l === 'zh') ? 'zh-CN' : 'en';
+  }
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('dsh-lang'); } catch (e) {}
+    setLang(saved === 'en' ? 'en' : 'zh');
+  })();
+</script>
+</body>
+</html>
