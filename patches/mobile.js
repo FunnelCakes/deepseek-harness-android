@@ -211,47 +211,22 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   window.addEventListener("scroll", wake, true);
   wake();
 })();
-/* ---- 7) 输入法(IME)候选确认的 Enter 误触发发送 ----
- * React 作曲栏(.uV2eYG_input)已有 isComposing/keyCode===229 守卫，但部分
- * 安卓输入法在确认候选词后发出的 Enter 是普通 keydown（keyCode 13、
- * isComposing=false），守卫拦不住导致误发送。此处在捕获阶段
- * （document.addEventListener(..., true)，先于 React 根委托）拦截：
- * compositionend 后 300ms 内的 Enter 只 stopPropagation——事件到不了 React
- * 根委托，不触发发送；不 preventDefault，默认行为（确认候选/正常换行）保留。 */
+/* ---- 7) 作曲输入框 enterkeyhint=newline ----
+ * 让安卓输入法把回车键显示为"换行"而非"发送"（配合会话 bundle 补丁：
+ * 普通回车=换行，Ctrl/Cmd+Enter=发送）。输入框可能晚于脚本加载，用
+ * MutationObserver 持续补设。 */
 (function () {
   "use strict";
-  if (typeof window === "undefined") return;
-  var COMPOSING_WINDOW = 300;   /* compositionend 后的防误触窗口(ms) */
-  var lastCompositionEnd = 0;
-  function isComposerTarget(t) {
-    if (!t || t.nodeType !== 1) return false;
-    if (typeof t.closest === "function") {
-      try { return !!t.closest(".uV2eYG_input, textarea"); } catch (e) { return false; }
-    }
-    /* 无 closest 环境：沿祖先链手工匹配类名/标签 */
-    var n = t;
-    while (n && n.nodeType === 1) {
-      var cls = typeof n.className === "string" ? n.className : "";
-      if (cls.indexOf("uV2eYG_input") !== -1 || n.tagName === "TEXTAREA") return true;
-      n = n.parentElement;
-    }
-    return false;
+  if (typeof window === "undefined" || !window.MutationObserver) return;
+  function applyHint() {
+    var el = document.querySelector(".uV2eYG_input");
+    if (el && !el.hasAttribute("enterkeyhint")) el.setAttribute("enterkeyhint", "newline");
   }
+  applyHint();
   try {
-    document.addEventListener("compositionstart", function (e) {
-      if (isComposerTarget(e.target)) lastCompositionEnd = 0;  /* 新组合开始，清掉旧结束戳 */
-    }, true);
-    document.addEventListener("compositionend", function (e) {
-      if (isComposerTarget(e.target)) lastCompositionEnd = Date.now();
-    }, true);
-    document.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter") return;
-      if (!isComposerTarget(e.target)) return;
-      if (e.isComposing || e.keyCode === 229 || (Date.now() - lastCompositionEnd < COMPOSING_WINDOW)) {
-        e.stopPropagation();   /* 只拦截传播，不 preventDefault：确认候选/换行照常 */
-      }
-    }, true);
-  } catch (err) {}
+    var mo = new MutationObserver(applyHint);
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) {}
 })();
 
 /* ---- 8) [DEBUG] 布局探针 v2：常驻左上角，实测坐标实时输出 ----
