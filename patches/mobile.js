@@ -138,29 +138,62 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }, true);
 })();
 
-/* ---- 4) 点击作曲栏 "+" 号不弹软键盘 ----
+/* ---- 4) 点击作曲栏 "+" 号完全不唤起键盘 ----
  * + 号按钮(onMouseDown: keepFocus) 在 mousedown 时显式 refocus 作曲输入框
- * (.uV2eYG_input)，触摸端因此拉起键盘。此处触摸端在 click 捕获 + setTimeout(0)
- * 后，若当前焦点仍是作曲输入框则 blur 掉；若焦点已被命令菜单自身输入框接管则放行。 */
+ * (.uV2eYG_input)，触摸端因此拉起键盘。此处触摸端在捕获阶段拦截 mousedown，
+ * 阻止事件冒泡到 React 根(keepFocus 不执行)，键盘根本不出现；
+ * 不影响 + 号自身的 click(开菜单)。blur 方案会让键盘闪一下，已弃用。 */
 (function () {
   "use strict";
   var isTouch =
     (typeof window !== "undefined" && "ontouchstart" in window) ||
     (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0);
   if (!isTouch) return;
-  function findAddButton(target) {
-    if (target && typeof target.closest === "function") {
-      try { return target.closest(".uV2eYG_add"); } catch (err) { return null; }
-    }
-    return null;
+  function isAddButton(target) {
+    return target && typeof target.closest === "function" && !!target.closest(".uV2eYG_add");
   }
-  document.addEventListener("click", function (e) {
-    if (!findAddButton(e.target)) return;
-    setTimeout(function () {
-      var ae = document.activeElement;
-      if (ae && typeof ae.matches === "function" && ae.matches(".uV2eYG_input")) {
-        ae.blur();
-      }
-    }, 0);
-  }, true);
+  document.addEventListener("mousedown", function (e) {
+    if (isAddButton(e.target)) {
+      e.stopPropagation();   /* 阻止事件冒泡到 React 根，keepFocus 不执行 */
+      e.preventDefault();
+    }
+  }, true);                  /* 捕获阶段，先于 React 根监听 */
+})();
+
+/* ---- 5) 子代理下拉吸附在触发器下方 ----
+ * position:fixed 脱离 overflow 容器裁剪，但用 rAF 持续把菜单定位到
+ * .h8S2Va_root 的 rect 下方（贴合父元素，不是底部弹层）。 */
+(function () {
+  if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
+  var GAP = 5, MARGIN = 8, raf = 0;
+  function isVisible(el) {
+    if (!el || el.getClientRects().length === 0) return false;
+    var cs = window.getComputedStyle(el);
+    return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+  }
+  function place() {
+    var menu = document.querySelector(".h8S2Va_menu");
+    if (!menu || !isVisible(menu)) return;
+    var root = menu.parentElement;
+    if (!root) return;
+    var r = root.getBoundingClientRect();
+    var m = menu.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var left = r.left, top = r.bottom + GAP;
+    if (left + m.width > vw - MARGIN) left = Math.max(MARGIN, vw - MARGIN - m.width);
+    if (left < MARGIN) left = MARGIN;
+    if (top + m.height > vh - MARGIN) top = vh - MARGIN - m.height;
+    if (top < MARGIN) top = MARGIN;
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+  }
+  function tick() { raf = 0; place(); if (isVisible(document.querySelector(".h8S2Va_menu"))) raf = requestAnimationFrame(tick); }
+  function wake() { if (!raf) raf = requestAnimationFrame(tick); }
+  try {
+    var mo = new MutationObserver(wake);
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) {}
+  window.addEventListener("resize", wake);
+  window.addEventListener("scroll", wake, true);
+  wake();
 })();

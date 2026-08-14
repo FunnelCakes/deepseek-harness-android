@@ -150,15 +150,15 @@
     flex-basis: 100% !important;
   }
 
-  /* 子代理下拉：移动端改底部弹层，避免被滚动容器裁剪导致显示不全 */
+  /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，但仍吸附在触发器
+     下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处） */
   .h8S2Va_menu {
     position: fixed !important;
-    left: 8px !important;
-    right: 8px !important;
+    left: auto !important;
     top: auto !important;
-    bottom: 12px !important;
-    width: auto !important;
     max-width: calc(100vw - 16px) !important;
     max-height: 60vh !important;
+    overflow: auto !important;
+    z-index: 100 !important;
   }
 }
