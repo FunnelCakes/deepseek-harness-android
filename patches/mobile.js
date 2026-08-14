@@ -160,9 +160,13 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }, true);                  /* 捕获阶段，先于 React 根监听 */
 })();
 
-/* ---- 5) 子代理下拉吸附在触发器下方 ----
- * position:fixed 脱离 overflow 容器裁剪，但用 rAF 持续把菜单定位到
- * .h8S2Va_root 的 rect 下方（贴合父元素，不是底部弹层）。 */
+/* ---- 5) 子代理下拉吸附在触发器下方（实测 containing block 偏移） ----
+ * position:fixed 的 containing block 可能是带 transform / contain /
+ * content-visibility / zoom 的祖先，导致 JS 写入的 left/top 相对该祖先
+ * 而非视口，菜单右边界因此超出屏幕。与其逐个猜测是哪种属性，不如每帧实测：
+ * 把 left/top/transform 临时归零，getBoundingClientRect 读出固定定位的真实
+ * 基准点（含一切 containing block 偏移），再据此换算目标坐标并在视口内 clamp。
+ * 全程在同一同步帧内完成，不触发中间重绘，无闪屏。 */
 (function () {
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 5, MARGIN = 12, raf = 0;
@@ -171,6 +175,14 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     var cs = window.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
   }
+  /* 实测 containing block 相对视口的偏移：临时归零后读出渲染坐标即得基准点 */
+  function cbOffset(menu) {
+    var pl = menu.style.left, pt = menu.style.top, pT = menu.style.transform;
+    menu.style.left = "0px"; menu.style.top = "0px"; menu.style.transform = "none";
+    var r = menu.getBoundingClientRect();
+    menu.style.left = pl; menu.style.top = pt; menu.style.transform = pT;
+    return { left: r.left, top: r.top };
+  }
   function place() {
     var menu = document.querySelector(".h8S2Va_menu");
     if (!menu || !isVisible(menu)) return;
@@ -178,15 +190,16 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     if (!root) return;
     var r = root.getBoundingClientRect();
     var m = menu.getBoundingClientRect();
-    if (m.width === 0 || m.height === 0) return; /* 宽度未就绪时跳过，等下一帧 */
+    if (m.width === 0 && m.height === 0) return; /* 宽度未就绪时跳过，等下一帧 */
     var vw = window.innerWidth, vh = window.innerHeight;
-    var left = r.left, top = r.bottom + GAP;
-    if (left + m.width > vw - MARGIN) left = Math.max(MARGIN, vw - MARGIN - m.width);
-    if (left < MARGIN) left = MARGIN;
-    if (top + m.height > vh - MARGIN) top = vh - MARGIN - m.height;
-    if (top < MARGIN) top = MARGIN;
-    menu.style.left = left + "px";
-    menu.style.top = top + "px";
+    var vLeft = r.left, vTop = r.bottom + GAP;
+    if (vLeft + m.width > vw - MARGIN) vLeft = Math.max(MARGIN, vw - MARGIN - m.width);
+    if (vLeft < MARGIN) vLeft = MARGIN;
+    if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
+    if (vTop < MARGIN) vTop = MARGIN;
+    var cb = cbOffset(menu); /* 实测偏移，不再依赖属性猜测 */
+    menu.style.left = (vLeft - cb.left) + "px";
+    menu.style.top = (vTop - cb.top) + "px";
   }
   function tick() { raf = 0; place(); if (isVisible(document.querySelector(".h8S2Va_menu"))) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
