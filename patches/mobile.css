@@ -173,10 +173,10 @@
     top: auto !important;
     width: auto !important;
     min-width: 200px !important;
-    max-width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 24px) !important;
     max-height: 60vh !important;
     overflow: auto !important;
-    z-index: 100 !important;
+    z-index: 2147483647 !important; /* JS 生效前的首帧兜底：最上层 */
   }
 
   /* 用量/上下文仪表（ContextMeter）面板：position:fixed 脱离 sticky 作曲栏
@@ -189,8 +189,9 @@
     right: auto !important;
     top: auto !important;
     bottom: auto !important;
+    max-width: calc(100vw - 24px) !important;
     max-height: 60vh !important;
     overflow-y: auto !important;
-    z-index: 1000 !important;
+    z-index: 2147483647 !important; /* JS 生效前的首帧兜底：最上层 */
   }
 }

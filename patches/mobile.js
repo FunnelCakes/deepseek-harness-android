@@ -1,7 +1,8 @@
 /* =====================================================================
  * dsh 移动端 JS 注入（由 apply-frontend.sh 注入到 index.html，
  * 必须在 <script type="module"> 之前执行）。
- * 包含：AbortSignal.any polyfill、tooltip 气泡重吸附、触摸交互增强。
+ * 包含：AbortSignal.any polyfill、tooltip 气泡重吸附、触摸交互增强、
+ * 子代理下拉/ContextMeter 面板 fixed 视口定位、IME 回车误发送拦截。
  * ===================================================================== */
 
 /* ---- 1) AbortSignal.any polyfill ----
@@ -160,24 +161,40 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }, true);                  /* 捕获阶段，先于 React 根监听 */
 })();
 
-/* ---- 5) 子代理下拉吸附在触发器下方（实测 containing block 偏移） ----
- * position:fixed 的 containing block 可能是带 transform / contain /
- * content-visibility / zoom 的祖先，导致 JS 写入的 left/top 相对该祖先
- * 而非视口，菜单右边界因此超出屏幕。与其逐个猜测是哪种属性，不如每帧实测：
- * 把 left/top/transform 临时归零，getBoundingClientRect 读出固定定位的真实
- * 基准点（含一切 containing block 偏移），再据此换算目标坐标并在视口内 clamp。
- * 关键：移动端样式（mobile.css）把 left/top/right/bottom 都写成 !important，
- * 普通内联赋值（menu.style.left = ...）压不过样式表的 !important，JS 定位会
- * 完全失效，菜单停留在 fixed+全 auto 的静态位置上，右/下边界同时出屏。
- * 因此这里一律用 CSSOM setProperty(...,"important") 写入同样 !important 的
- * 内联声明（内联 !important > 样式表 !important），并显式清掉 right/bottom。 */
+/* ---- 5) 子代理下拉：fixed 定位到触发器下方，视口内 clamp ----
+ * 上游 .h8S2Va_menu 为 absolute;left:0;width:336px，移动端由 mobile.css
+ * 改成 fixed，但 left/top/right/bottom 都是 !important，普通内联赋值压不过
+ * （必须用 CSSOM setProperty(...,"important")：内联 !important > 样式表
+ * !important）。本段按视口坐标直接定位：左对齐触发器左缘、位于触发器下方，
+ * 左/右/下边界 clamp 在 [MARGIN, 视口-MARGIN] 内保证整体不出屏；
+ * z-index:2147483647 提到最上层盖过一切内容；max-width(视口-24px) +
+ * max-height:60vh + overflow-y:auto 约束尺寸。
+ * containing block 兜底：仅当祖先链（parentElement 向上到 body，含 body）
+ * 存在会改变 fixed 定位基准的属性（transform/perspective/contain/filter/
+ * backdrop-filter/will-change 非默认值）时，才实测偏移补偿；否则直接写
+ * 视口坐标（这正是"根据屏幕大小决定坐标"）。 */
 (function () {
+  "use strict";
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 5, MARGIN = 12, raf = 0;
+  var FIXED_CB_PROPS = ["transform", "perspective", "contain", "filter", "backdrop-filter", "will-change"];
   function isVisible(el) {
     if (!el || el.getClientRects().length === 0) return false;
     var cs = window.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+  }
+  /* 祖先链上是否存在会改变 fixed containing block 的属性（el 向上到 body，含 body） */
+  function hasFixedCBAncestor(el) {
+    var n = el;
+    while (n && n.nodeType === 1 && n !== document.documentElement) {
+      var cs = window.getComputedStyle(n);
+      for (var i = 0; i < FIXED_CB_PROPS.length; i++) {
+        var v = cs.getPropertyValue(FIXED_CB_PROPS[i]);
+        if (v && v !== "none" && v !== "auto") return true;
+      }
+      n = n.parentElement;
+    }
+    return false;
   }
   /* 实测 containing block 相对视口的偏移：临时归零后读出渲染坐标即得基准点 */
   function cbOffset(menu) {
@@ -200,17 +217,27 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     menu.style.setProperty("position", "fixed", "important");
     menu.style.setProperty("right", "auto", "important");
     menu.style.setProperty("bottom", "auto", "important");
-    var r = root.getBoundingClientRect();
+    menu.style.setProperty("z-index", "2147483647", "important");
+    menu.style.setProperty("max-width", (vw - 2 * MARGIN) + "px", "important");
+    menu.style.setProperty("max-height", Math.floor(vh * 0.6) + "px", "important");
+    menu.style.setProperty("overflow-y", "auto", "important");
+    var r = root.getBoundingClientRect();           /* 触发器视口坐标 */
     var m = menu.getBoundingClientRect();
-    if (m.width === 0 && m.height === 0) return; /* 宽度未就绪时跳过，等下一帧 */
-    var vLeft = r.left, vTop = r.bottom + GAP;
+    if (m.width === 0 && m.height === 0) return;    /* 尺寸未就绪时跳过，等下一帧 */
+    var vLeft = r.left;                             /* 左对齐触发器左缘 */
     if (vLeft + m.width > vw - MARGIN) vLeft = Math.max(MARGIN, vw - MARGIN - m.width);
     if (vLeft < MARGIN) vLeft = MARGIN;
+    var vTop = r.bottom + GAP;                      /* 触发器下方 */
     if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
     if (vTop < MARGIN) vTop = MARGIN;
-    var cb = cbOffset(menu); /* 实测偏移，不再依赖属性猜测 */
-    menu.style.setProperty("left", (vLeft - cb.left) + "px", "important");
-    menu.style.setProperty("top", (vTop - cb.top) + "px", "important");
+    if (hasFixedCBAncestor(menu.parentElement)) {
+      var cb = cbOffset(menu);                      /* 仅 fixed-CB 祖先存在时才补偿 */
+      menu.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+      menu.style.setProperty("top", (vTop - cb.top) + "px", "important");
+    } else {
+      menu.style.setProperty("left", vLeft + "px", "important");   /* 直接写视口坐标 */
+      menu.style.setProperty("top", vTop + "px", "important");
+    }
   }
   function tick() { raf = 0; place(); if (isVisible(document.querySelector(".h8S2Va_menu"))) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -223,22 +250,40 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   wake();
 })();
 
-/* ---- 6) 用量/上下文仪表（ContextMeter）面板：JS 全控 fixed 定位 ----
+/* ---- 6) 用量/上下文仪表（ContextMeter）面板：JS 全控 fixed 定位，视口 clamp ----
  * .JObwrW_panel 插件样式为 absolute;bottom:calc(100% + 8px);right:0;width:264px。
  * 移动端输入条换行（.uV2eYG_trailing{display:contents}）后触发器不再贴右，
- * 向左展开会越过左边界；且面板在 sticky 作曲栏内向上展开会被滚动容器
- * 裁剪/遮挡。处理与第 5 节一致：CSSOM setProperty(...,"important") 写入
- * 内联 !important 以压过 mobile.css 的 !important 定位声明，显式
- * position:fixed + right/bottom:auto（避免与插件 bottom/right 叠加成拉伸
- * 越界）+ max-height/纵向滚动，再实测 containing block 偏移，把面板钉在
- * 触发器上方并在视口内 clamp；上方放不下翻到下方。 */
+ * 向左展开会越过左边界；且面板在 sticky 作曲栏内向上展开会被滚动容器裁剪。
+ * 与第 5 节同款方案：CSSOM setProperty(...,"important") 写入内联 !important
+ * 压过 mobile.css 的 !important，显式 position:fixed + right/bottom:auto +
+ * z-index:2147483647（最上层）+ max-height:60vh + overflow-y:auto +
+ * max-width(视口-24px)（保证不超右边界）。
+ * 坐标按视口计算：右缘对齐触发器右缘、优先放在触发器上方，上方放不下翻到
+ * 下方，左/右/上/下都 clamp 在 [MARGIN, 视口-MARGIN] 内；
+ * 仅当祖先链存在 fixed-CB 属性时才用实测偏移补偿，否则直接写视口坐标
+ * （这正是用户建议的"显示在最上层，根据屏幕大小决定其相对坐标"）。 */
 (function () {
+  "use strict";
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 8, MARGIN = 12, raf = 0;
+  var FIXED_CB_PROPS = ["transform", "perspective", "contain", "filter", "backdrop-filter", "will-change"];
   function isVisible(el) {
     if (!el || el.getClientRects().length === 0) return false;
     var cs = window.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+  }
+  /* 祖先链上是否存在会改变 fixed containing block 的属性（el 向上到 body，含 body） */
+  function hasFixedCBAncestor(el) {
+    var n = el;
+    while (n && n.nodeType === 1 && n !== document.documentElement) {
+      var cs = window.getComputedStyle(n);
+      for (var i = 0; i < FIXED_CB_PROPS.length; i++) {
+        var v = cs.getPropertyValue(FIXED_CB_PROPS[i]);
+        if (v && v !== "none" && v !== "auto") return true;
+      }
+      n = n.parentElement;
+    }
+    return false;
   }
   function cbOffset(panel) {
     var pl = panel.style.getPropertyValue("left"), pt = panel.style.getPropertyValue("top"), pT = panel.style.transform;
@@ -260,23 +305,28 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     panel.style.setProperty("position", "fixed", "important");
     panel.style.setProperty("right", "auto", "important");
     panel.style.setProperty("bottom", "auto", "important");
+    panel.style.setProperty("z-index", "2147483647", "important");       /* 最上层 */
     panel.style.setProperty("max-height", Math.floor(vh * 0.6) + "px", "important");
     panel.style.setProperty("overflow-y", "auto", "important");
-    panel.style.setProperty("z-index", "1000", "important");
-    var r = root.getBoundingClientRect();
+    panel.style.setProperty("max-width", (vw - 2 * MARGIN) + "px", "important"); /* 保证不超右边界 */
+    var r = root.getBoundingClientRect();           /* 触发器视口坐标 */
     var m = panel.getBoundingClientRect();
-    if (m.width === 0 && m.height === 0) return;
-    var vLeft = r.right - m.width;                    /* 右缘对齐触发器右缘（原 right:0 语义） */
-    if (vLeft + m.width > vw - MARGIN) vLeft = vw - MARGIN - m.width;
+    if (m.width === 0 && m.height === 0) return;    /* 尺寸未就绪时跳过，等下一帧 */
+    var vLeft = r.right - m.width;                  /* 右缘对齐触发器右缘（原 right:0 语义） */
+    if (vLeft + m.width > vw - MARGIN) vLeft = Math.max(MARGIN, vw - MARGIN - m.width);
     if (vLeft < MARGIN) vLeft = MARGIN;
-    var vTop = r.top - m.height - GAP;                /* 触发器上方（原 bottom:100% + 8px 语义） */
-    if (vTop < MARGIN) {                              /* 上方放不下则翻到下方 */
-      vTop = r.bottom + GAP;
-      if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
+    var vTop = r.top - m.height - GAP;              /* 上方优先（原 bottom:100%+8px 语义） */
+    if (vTop < MARGIN) vTop = r.bottom + GAP;       /* 上方放不下则翻到下方 */
+    if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
+    if (vTop < MARGIN) vTop = MARGIN;
+    if (hasFixedCBAncestor(panel.parentElement)) {
+      var cb = cbOffset(panel);                     /* 仅 fixed-CB 祖先存在时才补偿 */
+      panel.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+      panel.style.setProperty("top", (vTop - cb.top) + "px", "important");
+    } else {
+      panel.style.setProperty("left", vLeft + "px", "important");       /* 直接写视口坐标 */
+      panel.style.setProperty("top", vTop + "px", "important");
     }
-    var cb = cbOffset(panel);
-    panel.style.setProperty("left", (vLeft - cb.left) + "px", "important");
-    panel.style.setProperty("top", (vTop - cb.top) + "px", "important");
   }
   function tick() { raf = 0; place(); if (isVisible(document.querySelector(".JObwrW_panel"))) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -287,4 +337,47 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   window.addEventListener("resize", wake);
   window.addEventListener("scroll", wake, true);
   wake();
+})();
+
+/* ---- 7) 输入法(IME)候选确认的 Enter 误触发发送 ----
+ * React 作曲栏(.uV2eYG_input)已有 isComposing/keyCode===229 守卫，但部分
+ * 安卓输入法在确认候选词后发出的 Enter 是普通 keydown（keyCode 13、
+ * isComposing=false），守卫拦不住导致误发送。此处在捕获阶段
+ * （document.addEventListener(..., true)，先于 React 根委托）拦截：
+ * compositionend 后 300ms 内的 Enter 只 stopPropagation——事件到不了 React
+ * 根委托，不触发发送；不 preventDefault，默认行为（确认候选/正常换行）保留。 */
+(function () {
+  "use strict";
+  if (typeof window === "undefined") return;
+  var COMPOSING_WINDOW = 300;   /* compositionend 后的防误触窗口(ms) */
+  var lastCompositionEnd = 0;
+  function isComposerTarget(t) {
+    if (!t || t.nodeType !== 1) return false;
+    if (typeof t.closest === "function") {
+      try { return !!t.closest(".uV2eYG_input, textarea"); } catch (e) { return false; }
+    }
+    /* 无 closest 环境：沿祖先链手工匹配类名/标签 */
+    var n = t;
+    while (n && n.nodeType === 1) {
+      var cls = typeof n.className === "string" ? n.className : "";
+      if (cls.indexOf("uV2eYG_input") !== -1 || n.tagName === "TEXTAREA") return true;
+      n = n.parentElement;
+    }
+    return false;
+  }
+  try {
+    document.addEventListener("compositionstart", function (e) {
+      if (isComposerTarget(e.target)) lastCompositionEnd = 0;  /* 新组合开始，清掉旧结束戳 */
+    }, true);
+    document.addEventListener("compositionend", function (e) {
+      if (isComposerTarget(e.target)) lastCompositionEnd = Date.now();
+    }, true);
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      if (!isComposerTarget(e.target)) return;
+      if (e.isComposing || e.keyCode === 229 || (Date.now() - lastCompositionEnd < COMPOSING_WINDOW)) {
+        e.stopPropagation();   /* 只拦截传播，不 preventDefault：确认候选/换行照常 */
+      }
+    }, true);
+  } catch (err) {}
 })();
