@@ -1,6 +1,18 @@
 /* 竖屏手机适配覆盖层（Termux/Android）
  * 由 apply-frontend.sh 注入到 dsh-web-frontend/dist/index.html 的
  * <style id="dsh-mobile-adapt"> 中。类名来自 dsh 0.1.0-rc.6 构建，升级后可能变化。 */
+
+/* 子代理目录树下拉（.h8S2Va_menu）：所有宽度生效的通用修正。
+ * 上游 rc.6 构建的菜单用 left:0 以触发器左缘为锚向右展开，而触发器位于
+ * 会话页头右侧，宽屏/窄屏下右边界都可能超出视口。此处改为右对齐触发器
+ * 右边缘、向左展开（与页头 token 面板 right:0 模式一致）。
+ * <=480px 的移动端由下方媒体查询（position:fixed + JS 定位）接管，
+ * 该查询里显式 right:auto 保证不受本规则约束。 */
+.h8S2Va_menu {
+  left: auto !important;
+  right: 0 !important;
+}
+
 @media (max-width: 480px) {
   /* 侧栏展开 = 覆盖式抽屉，不再把对话区挤成窄条 */
   div[data-details-collapsed]:not([data-sidebar-collapsed]) {
@@ -152,10 +164,12 @@
 
   /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，但仍吸附在触发器
      下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处）。
-     宽度自适应内容但受 max-width 约束，避免超出屏幕右边界。 */
+     宽度自适应内容但受 max-width 约束，避免超出屏幕右边界。
+     right:auto 取消上方通用右锚定，交给 JS 定位。 */
   .h8S2Va_menu {
     position: fixed !important;
     left: auto !important;
+    right: auto !important;
     top: auto !important;
     width: auto !important;
     min-width: 200px !important;
