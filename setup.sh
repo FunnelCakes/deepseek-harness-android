@@ -5,8 +5,8 @@
 # 安装 DeepSeek 官方 agent harness (@deepseek-ai/dsh) 并在 Termux 上跑起来，
 # 自动完成所有 Android 兼容修复：
 #   1. 安装构建依赖 (cmake/clang/make/binutils/pkg-config/python/nodejs)
-#   2. 修补 node-gyp 缓存的 common.gypi（修 node-pty 构建）
-#   3. 用 android30 编译目标安装 dsh（修 koffi statx）+ 放行构建脚本
+#   2. node-gyp install 下载 headers 填充缓存 → 修补 common.gypi（修 node-pty 构建）
+#   3. 用 android30 编译目标安装 dsh（修 koffi statx）+ 放行构建脚本（下载+编译需耐心）
 #   4. 修补 link() → rename()（华为/部分 ROM 禁 hardlink，会话/附件才能持久化）
 #   5. 修补 subprocess 终端检测（android 视同 linux）
 #   6. 安装 sharp WebAssembly 回退（android-arm64 无原生预编译）
@@ -38,14 +38,31 @@ command -v node >/dev/null 2>&1 || { warn "node 未安装，重试安装 nodejs.
 NODE_VER="$(node -v | sed 's/^v//')"
 info "Node.js v${NODE_VER}"
 
+# --------------------------------------------------- 智能换源（国内用户友好）
+# 检测默认 npm / nodejs.org 是否太慢，慢则自动切换到 npmmirror 镜像。
+# 仅通过环境变量作用于本次安装会话，不改动全局 npm 配置。
+is_slow() {
+  local url="$1" t
+  t=$(curl -o /dev/null -s -w '%{time_total}' --max-time 6 "$url" 2>/dev/null)
+  [ -z "$t" ] && return 0
+  awk -v t="$t" 'BEGIN { exit !(t > 1.0) }'
+}
+if is_slow "https://registry.npmjs.org/-/ping"; then
+  info "默认 npm 源较慢，自动切换到 npmmirror 镜像 (registry.npmmirror.com)"
+  export npm_config_registry="https://registry.npmmirror.com"
+fi
+if is_slow "https://nodejs.org/dist/"; then
+  info "nodejs.org 较慢，node-gyp 下载 Node headers 自动切换到 npmmirror 镜像"
+  export npm_config_disturl="https://npmmirror.com/mirrors/node/"
+fi
+
 # ------------------------------------------------------- 2/8 准备 gyp 补丁
-info "2/8 首次安装以填充 node-gyp 缓存（node-pty 原生构建会失败，属预期）"
+info "2/8 下载 Node headers 填充 node-gyp 缓存（约 1 分钟，请稍候）"
 # node-gyp 首次构建会把 node headers 解压到缓存，其中 common.gypi 引用了
 # android_ndk_path 变量；Termux 无 NDK 该变量未定义 → 必须修补缓存文件。
-# 先触发一次缓存填充（失败无妨），随后打补丁再正式安装。
-CFLAGS="-target aarch64-linux-android30" CXXFLAGS="-target aarch64-linux-android30" \
-  npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs "$DSH_NPM" \
-  >/dev/null 2>&1 || true
+# 这里用 `node-gyp install` 只下载 headers（远快于整树 npm install），随后打补丁。
+# 若此处卡住：多为网络问题，检查能否访问 nodejs.org；超时 300s 后自动跳过并告警。
+timeout 300 npx --yes node-gyp install 2>&1 | tail -3 || true
 
 GYP_GIPI="$HOME/.cache/node-gyp/$NODE_VER/include/node/common.gypi"
 if [ -f "$GYP_GIPI" ]; then
@@ -64,7 +81,7 @@ else
 fi
 
 # ------------------------------------------------------------- 3/8 正式安装
-info "3/8 用 android30 编译目标正式安装 dsh（修 koffi statx）"
+info "3/8 用 android30 编译目标正式安装 dsh（下载依赖+原生编译，可能需要 5~15 分钟，请耐心等待，不要中断）"
 CFLAGS="-target aarch64-linux-android30" CXXFLAGS="-target aarch64-linux-android30" \
   npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs "$DSH_NPM"
 "$DSH_DIR/node_modules/node-pty/build/Release/pty.node" 2>/dev/null || true

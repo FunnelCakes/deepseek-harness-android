@@ -31,6 +31,8 @@ cd deepseek-harness-android
 bash setup.sh
 ```
 
+> 🇨🇳 **国内用户提示**：`setup.sh` 会自动测速，npm / nodejs.org 较慢时**自动切换到 npmmirror 镜像**（仅本次会话生效，不改全局配置）。若 `git clone` 很慢或超时，请先开代理/TUN，或改用镜像 clone（如 `https://gitclone.com/github.com/FunnelCakes/deepseek-harness-android.git`）。
+
 ### 三、使用
 
 ```bash
@@ -110,6 +112,8 @@ git clone https://github.com/FunnelCakes/deepseek-harness-android.git
 cd deepseek-harness-android
 bash setup.sh
 ```
+
+> 🇨🇳 **China users**: `setup.sh` auto-detects slow npm / nodejs.org and **switches to the npmmirror mirror** (session-only, doesn't change your global config). If `git clone` is slow or times out, enable a proxy/TUN first, or clone via a mirror (e.g. `https://gitclone.com/github.com/FunnelCakes/deepseek-harness-android.git`).
 
 ### 3. Usage
 
