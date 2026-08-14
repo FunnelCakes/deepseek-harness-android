@@ -70,7 +70,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 
 ### 七、作者测试环境与兼容性
 
-- **测试设备**：华为 Mate 60（ALN-AL80），HarmonyOS，**无 root**，Termux（Node v26，aarch64）。
+- **测试设备**：华为 Mate 60（ALN-AL80），HarmonyOS 4.2.0（build 4.2.0.186），**无 root**，Termux（Node v26，aarch64）。
 - 不同手机 / ROM 的差异可能导致额外问题，例如：部分 ROM 通过 SELinux 禁用 `link()` 系统调用（会话/附件无法持久化，本脚本已改为 `rename()` 修复）、命名空间沙箱权限不同、bwrap/landlock 是否可用等。
 - `setup.sh` 覆盖了通用 Android 场景，但个别机型可能需要额外适配。
 
@@ -150,7 +150,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 
 ### 7. Author's test environment & compatibility
 
-- **Tested device**: Huawei Mate 60 (ALN-AL80), HarmonyOS, **no root**, Termux (Node v26, aarch64).
+- **Tested device**: Huawei Mate 60 (ALN-AL80), HarmonyOS 4.2.0 (build 4.2.0.186), **no root**, Termux (Node v26, aarch64).
 - Different phones / ROMs may behave differently, e.g. some ROMs block the `link()` syscall via SELinux (sessions/attachments fail to persist — this script switches to `rename()` to fix it), namespace-sandbox permissions vary, and bwrap/landlock may or may not be available.
 - `setup.sh` covers the common Android cases, but specific devices may need extra tweaks.
 

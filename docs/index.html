@@ -94,7 +94,7 @@ bash ~/dsh/stop_dsh.sh    # 停止</pre>
 
     <h2>七、作者测试环境与兼容性</h2>
     <ul>
-      <li><b>测试设备</b>：华为 Mate 60（ALN-AL80），HarmonyOS，<b>无 root</b>，Termux（Node v26，aarch64）。</li>
+      <li><b>测试设备</b>：华为 Mate 60（ALN-AL80），HarmonyOS 4.2.0（build 4.2.0.186），<b>无 root</b>，Termux（Node v26，aarch64）。</li>
       <li>不同手机/ROM 差异可能导致额外问题（如部分 ROM 经 SELinux 禁用 <code>link()</code>、命名空间沙箱权限不同）。</li>
       <li><code>setup.sh</code> 覆盖通用 Android 场景，个别机型可能需额外适配。</li>
     </ul>
@@ -166,7 +166,7 @@ bash ~/dsh/stop_dsh.sh    # stop</pre>
 
     <h2>7. Author's test environment &amp; compatibility</h2>
     <ul>
-      <li><b>Tested device</b>: Huawei Mate 60 (ALN-AL80), HarmonyOS, <b>no root</b>, Termux (Node v26, aarch64).</li>
+      <li><b>Tested device</b>: Huawei Mate 60 (ALN-AL80), HarmonyOS 4.2.0 (build 4.2.0.186), <b>no root</b>, Termux (Node v26, aarch64).</li>
       <li>Different phones/ROMs may behave differently (e.g. some ROMs block <code>link()</code> via SELinux, namespace-sandbox permissions vary).</li>
       <li><code>setup.sh</code> covers common Android cases; specific devices may need extra tweaks.</li>
     </ul>
