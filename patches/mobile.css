@@ -13,6 +13,15 @@
   right: 0 !important;
 }
 
+/* 后台任务下拉（.QsffPG_menu）：与子代理下拉同款修正。
+ * 上游同样是 absolute;left:0;width:336px 左锚定向右展开，宽屏/高缩放下
+ * 右边界会超出视口；>480px 时右对齐触发器右边缘，<=480px 由媒体查询
+ * 接管为视口内全宽面板。 */
+.QsffPG_menu {
+  left: auto !important;
+  right: 0 !important;
+}
+
 /* 用量/上下文仪表面板（.JObwrW_panel）：纯 CSS 修复，所有宽度生效，无 JS。
  * 上游插件样式是 absolute;bottom:calc(100% + 8px);right:0;width:264px，
  * 面板向上展开会被会话滚动容器（overflow 裁剪）遮挡，触发器不贴右时还会
@@ -186,6 +195,21 @@
      右边界都不会超出视口（实测：html zoom=3.25 时视口仅 388px 宽，
      原 left 锚定 + max-width 组合导致 R=442 溢出 54px）。 */
   .h8S2Va_menu {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 60vh !important;
+    overflow: auto !important;
+    z-index: 100 !important;
+  }
+
+  /* 后台任务下拉（.QsffPG_menu）：与子代理下拉同款——视口内全宽面板，
+     右边界恒在视口内，top:auto 仍吸附在触发器正下方。 */
+  .QsffPG_menu {
     position: fixed !important;
     left: 8px !important;
     right: 8px !important;
