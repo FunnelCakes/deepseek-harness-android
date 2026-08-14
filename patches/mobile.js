@@ -211,3 +211,20 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   window.addEventListener("scroll", wake, true);
   wake();
 })();
+/* ---- 7) 作曲输入框 enterkeyhint=newline ----
+ * 让安卓输入法把回车键显示为"换行"而非"发送"（配合会话 bundle 补丁：
+ * 普通回车=换行，Ctrl/Cmd+Enter=发送）。输入框可能晚于脚本加载，用
+ * MutationObserver 持续补设。 */
+(function () {
+  "use strict";
+  if (typeof window === "undefined" || !window.MutationObserver) return;
+  function applyHint() {
+    var el = document.querySelector(".uV2eYG_input");
+    if (el && !el.hasAttribute("enterkeyhint")) el.setAttribute("enterkeyhint", "newline");
+  }
+  applyHint();
+  try {
+    var mo = new MutationObserver(applyHint);
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) {}
+})();

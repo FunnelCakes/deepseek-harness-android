@@ -13,6 +13,33 @@
   right: 0 !important;
 }
 
+/* 后台任务下拉（.QsffPG_menu）：与子代理下拉同款修正。
+ * 上游同样是 absolute;left:0;width:336px 左锚定向右展开，宽屏/高缩放下
+ * 右边界会超出视口；>480px 时右对齐触发器右边缘，<=480px 由媒体查询
+ * 接管为视口内全宽面板。 */
+.QsffPG_menu {
+  left: auto !important;
+  right: 0 !important;
+}
+
+/* 用量/上下文仪表面板（.JObwrW_panel）：纯 CSS 修复，所有宽度生效，无 JS。
+ * 上游插件样式是 absolute;bottom:calc(100% + 8px);right:0;width:264px，
+ * 面板向上展开会被会话滚动容器（overflow 裁剪）遮挡，触发器不贴右时还会
+ * 出边界。这里与子代理下拉同款思路：改成 position:fixed 挂在最上层，
+ * 按视口锚定（贴右、位于作曲栏上方），尺寸受视口约束，保证始终完整可见、
+ * 不出任何边界。bottom 取作曲栏上方（触发行约占底部 ~64px）。 */
+.JObwrW_panel {
+  position: fixed !important;
+  left: auto !important;
+  top: auto !important;
+  right: 12px !important;
+  bottom: 64px !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: 60vh !important;
+  overflow-y: auto !important;
+  z-index: 2147483647 !important;
+}
+
 @media (max-width: 480px) {
   /* 侧栏展开 = 覆盖式抽屉，不再把对话区挤成窄条 */
   div[data-details-collapsed]:not([data-sidebar-collapsed]) {
@@ -162,18 +189,34 @@
     flex-basis: 100% !important;
   }
 
-  /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，但仍吸附在触发器
-     下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处）。
-     宽度自适应内容但受 max-width 约束，避免超出屏幕右边界。
-     right:auto 取消上方通用右锚定，交给 JS 定位。 */
+  /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，仍吸附在触发器
+     下方（top:auto = 静态位置，即触发器正下方）；水平方向做成视口内
+     全宽面板（left:8px + right:8px），无论触发器位置/页面缩放如何，
+     右边界都不会超出视口（实测：html zoom=3.25 时视口仅 388px 宽，
+     原 left 锚定 + max-width 组合导致 R=442 溢出 54px）。 */
   .h8S2Va_menu {
     position: fixed !important;
-    left: auto !important;
-    right: auto !important;
+    left: 8px !important;
+    right: 8px !important;
     top: auto !important;
     width: auto !important;
-    min-width: 200px !important;
-    max-width: calc(100vw - 32px) !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 60vh !important;
+    overflow: auto !important;
+    z-index: 100 !important;
+  }
+
+  /* 后台任务下拉（.QsffPG_menu）：与子代理下拉同款——视口内全宽面板，
+     右边界恒在视口内，top:auto 仍吸附在触发器正下方。 */
+  .QsffPG_menu {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px) !important;
     max-height: 60vh !important;
     overflow: auto !important;
     z-index: 100 !important;

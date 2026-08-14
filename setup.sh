@@ -143,6 +143,57 @@ print("  patched subprocess-local (android→linux)")
 PY
 fi
 
+# 4d: 作曲栏 普通回车=换行（不发送），Ctrl/Cmd+Enter=发送
+# 安卓输入法/键盘的回车会误触发发送，改为在 React 处理里对非加速回车
+# 提前 return（textarea 默认行为=换行）。对应 apply-frontend.sh 注入的
+# enterkeyhint=newline（让输入法回车键显示"换行"）。
+CB="$DSH_DIR/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js"
+if grep -q "dsh-android: 普通回车换行" "$CB" 2>/dev/null; then
+  ok "  client-ui-conversation 回车补丁已就位"
+else
+  python3 - "$CB" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+old = (
+  '\t\t\t\tif (keyboard.arbitrate("enter", composing) !== "pass") {\n'
+  '\t\t\t\t\te.preventDefault();\n'
+  '\t\t\t\t\treturn;\n'
+  '\t\t\t\t}\n'
+  '\t\t\t\te.preventDefault();\n'
+  '\t\t\t\tif (e.repeat) return;\n'
+  '\t\t\t\tif (locked || machineBusy) return;\n'
+  '\t\t\t\tconst accelerated = e.ctrlKey || e.metaKey;\n'
+  '\t\t\t\tif (accelerated && canSteerQueue) {\n'
+  '\t\t\t\t\tkeyboard.steerQueue();\n'
+  '\t\t\t\t\treturn;\n'
+  '\t\t\t\t}\n'
+  '\t\t\t\tkeyboard.submit(resolveSubmitMode(running, accelerated ? "accelerated" : "enter", subagent === null));\n'
+)
+new = (
+  '\t\t\t\tif (keyboard.arbitrate("enter", composing) !== "pass") {\n'
+  '\t\t\t\t\te.preventDefault();\n'
+  '\t\t\t\t\treturn;\n'
+  '\t\t\t\t}\n'
+  '\t\t\t\tconst accelerated = e.ctrlKey || e.metaKey;\n'
+  '\t\t\t\tif (!accelerated) return; /* dsh-android: 普通回车换行，Ctrl/Cmd+Enter 发送 */\n'
+  '\t\t\t\te.preventDefault();\n'
+  '\t\t\t\tif (e.repeat) return;\n'
+  '\t\t\t\tif (locked || machineBusy) return;\n'
+  '\t\t\t\tif (accelerated && canSteerQueue) {\n'
+  '\t\t\t\t\tkeyboard.steerQueue();\n'
+  '\t\t\t\t\treturn;\n'
+  '\t\t\t\t}\n'
+  '\t\t\t\tkeyboard.submit(resolveSubmitMode(running, "accelerated", subagent === null));\n'
+)
+if s.count(old) != 1:
+  print("  WARN: 回车补丁模式未精确匹配，跳过（请人工检查）")
+  sys.exit(0)
+open(p, 'w', encoding='utf-8').write(s.replace(old, new))
+print("  patched client-ui-conversation (Enter=newline, Ctrl+Enter=send)")
+PY
+fi
+
 # ------------------------------------------------------ 5/8 sharp wasm 回退
 info "5/8 安装 sharp WebAssembly 回退（android-arm64 无原生预编译）"
 SHARP_VER="$(node -e "console.log(require('$DSH_DIR/node_modules/sharp/package.json').version)" 2>/dev/null || echo 0.35.3)"
