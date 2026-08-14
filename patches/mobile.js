@@ -137,3 +137,30 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     }
   }, true);
 })();
+
+/* ---- 4) 点击作曲栏 "+" 号不弹软键盘 ----
+ * + 号按钮(onMouseDown: keepFocus) 在 mousedown 时显式 refocus 作曲输入框
+ * (.uV2eYG_input)，触摸端因此拉起键盘。此处触摸端在 click 捕获 + setTimeout(0)
+ * 后，若当前焦点仍是作曲输入框则 blur 掉；若焦点已被命令菜单自身输入框接管则放行。 */
+(function () {
+  "use strict";
+  var isTouch =
+    (typeof window !== "undefined" && "ontouchstart" in window) ||
+    (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0);
+  if (!isTouch) return;
+  function findAddButton(target) {
+    if (target && typeof target.closest === "function") {
+      try { return target.closest(".uV2eYG_add"); } catch (err) { return null; }
+    }
+    return null;
+  }
+  document.addEventListener("click", function (e) {
+    if (!findAddButton(e.target)) return;
+    setTimeout(function () {
+      var ae = document.activeElement;
+      if (ae && typeof ae.matches === "function" && ae.matches(".uV2eYG_input")) {
+        ae.blur();
+      }
+    }, 0);
+  }, true);
+})();

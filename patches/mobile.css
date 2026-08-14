@@ -137,4 +137,28 @@
     min-height: 0 !important;
     overflow-y: auto !important;
   }
+
+  /* 会话头部：子代理另起一行，避免"预设/子代理/Session Log"挤在一行 */
+  .wSkVaW_titleRow {
+    flex-wrap: wrap !important;
+  }
+  .wSkVaW_headerActions {
+    flex: 0 0 100% !important;
+    flex-wrap: wrap !important;
+  }
+  .h8S2Va_root {
+    flex-basis: 100% !important;
+  }
+
+  /* 子代理下拉：移动端改底部弹层，避免被滚动容器裁剪导致显示不全 */
+  .h8S2Va_menu {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: auto !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 60vh !important;
+  }
 }
