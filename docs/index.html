@@ -92,6 +92,14 @@ bash ~/dsh/stop_dsh.sh    # 停止</pre>
       <li><b>换机/重装</b>：重跑 <code>bash setup.sh</code>。</li>
     </ul>
 
+    <h2>七、作者测试环境与兼容性</h2>
+    <ul>
+      <li><b>测试设备</b>：华为 Mate 60（ALN-AL80），HarmonyOS，<b>无 root</b>，Termux（Node v26，aarch64）。</li>
+      <li>不同手机/ROM 差异可能导致额外问题（如部分 ROM 经 SELinux 禁用 <code>link()</code>、命名空间沙箱权限不同）。</li>
+      <li><code>setup.sh</code> 覆盖通用 Android 场景，个别机型可能需额外适配。</li>
+    </ul>
+    <p><b>欢迎提 issue / PR 适配更多环境</b>：<a href="https://github.com/FunnelCakes/deepseek-harness-android/issues">Issues</a> 或 Pull Request 均可。</p>
+
     <h2>参考</h2>
     <ul>
       <li><a href="https://github.com/deepseek-ai/deepseek-harness">deepseek-ai/deepseek-harness</a></li>
@@ -155,6 +163,14 @@ bash ~/dsh/stop_dsh.sh    # stop</pre>
       <li><b>Model not responding</b>: check the API Key in Models page and <code>~/.dsh/.credentials.yaml</code>.</li>
       <li><b>Reinstall / new device</b>: re-run <code>bash setup.sh</code>.</li>
     </ul>
+
+    <h2>7. Author's test environment &amp; compatibility</h2>
+    <ul>
+      <li><b>Tested device</b>: Huawei Mate 60 (ALN-AL80), HarmonyOS, <b>no root</b>, Termux (Node v26, aarch64).</li>
+      <li>Different phones/ROMs may behave differently (e.g. some ROMs block <code>link()</code> via SELinux, namespace-sandbox permissions vary).</li>
+      <li><code>setup.sh</code> covers common Android cases; specific devices may need extra tweaks.</li>
+    </ul>
+    <p><b>Issues &amp; PRs welcome</b>: <a href="https://github.com/FunnelCakes/deepseek-harness-android/issues">Issues</a> or pull requests for your environment.</p>
 
     <h2>References</h2>
     <ul>

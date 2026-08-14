@@ -68,6 +68,14 @@ bash ~/dsh/stop_dsh.sh    # 停止
 - **模型没反应**：检查 Models 页 API Key 与 `~/.dsh/.credentials.yaml`。
 - **换机/重装**：重跑 `bash setup.sh`。
 
+### 七、作者测试环境与兼容性
+
+- **测试设备**：华为 Mate 60（ALN-AL80），HarmonyOS，**无 root**，Termux（Node v26，aarch64）。
+- 不同手机 / ROM 的差异可能导致额外问题，例如：部分 ROM 通过 SELinux 禁用 `link()` 系统调用（会话/附件无法持久化，本脚本已改为 `rename()` 修复）、命名空间沙箱权限不同、bwrap/landlock 是否可用等。
+- `setup.sh` 覆盖了通用 Android 场景，但个别机型可能需要额外适配。
+
+**欢迎提 issue / PR 适配更多环境**：如果你在其它品牌、系统版本或 root 状态下遇到问题，欢迎在 [Issues](https://github.com/FunnelCakes/deepseek-harness-android/issues) 提交，或提交 Pull Request 补充对应机型的修复。
+
 ### 参考
 
 - [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
@@ -139,6 +147,14 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 - **`AbortSignal.any is not a function`**: old browser; `apply-frontend.sh` injects a polyfill.
 - **Model not responding**: check the API Key in Models page and `~/.dsh/.credentials.yaml`.
 - **Reinstall / new device**: re-run `bash setup.sh`.
+
+### 7. Author's test environment & compatibility
+
+- **Tested device**: Huawei Mate 60 (ALN-AL80), HarmonyOS, **no root**, Termux (Node v26, aarch64).
+- Different phones / ROMs may behave differently, e.g. some ROMs block the `link()` syscall via SELinux (sessions/attachments fail to persist — this script switches to `rename()` to fix it), namespace-sandbox permissions vary, and bwrap/landlock may or may not be available.
+- `setup.sh` covers the common Android cases, but specific devices may need extra tweaks.
+
+**Issues & PRs welcome**: if you hit a problem on another brand / OS version / root state, please open an [issue](https://github.com/FunnelCakes/deepseek-harness-android/issues) or submit a pull request with a fix for your environment.
 
 ### References
 

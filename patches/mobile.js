@@ -5,7 +5,7 @@
  * ===================================================================== */
 
 /* ---- 1) AbortSignal.any polyfill ----
- * 手机浏览器（老 Chrome/EMUI）不支持该新 API，工作区选择等请求会因此报错 */
+ * 手机浏览器（老 Chrome/部分手机浏览器）不支持该新 API，工作区选择等请求会因此报错 */
 if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   AbortSignal.any = function (signals) {
     var controller = new AbortController();
