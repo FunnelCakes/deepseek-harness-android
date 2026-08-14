@@ -25,6 +25,7 @@ info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn()  { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m[v]\033[0m %s\n' "$*"; }
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"   # 脚本真实目录（脚本中段会 cd，须用绝对路径）
 DSH_NPM="@deepseek-ai/dsh"
 DSH_DIR="/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh"
 INSTALL_DIR="$HOME/dsh"
@@ -173,8 +174,8 @@ dsh --version && ok "dsh $(dsh --version) 可用"
 # ----------------------------------------------------- 7/8 启动/停止脚本
 info "7/8 写入启动/停止脚本到 $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR/storage"
-cp "$(dirname "$0")/start_dsh.sh" "$INSTALL_DIR/start_dsh.sh"
-cp "$(dirname "$0")/stop_dsh.sh"  "$INSTALL_DIR/stop_dsh.sh"
+cp "$SCRIPT_DIR/start_dsh.sh" "$INSTALL_DIR/start_dsh.sh"
+cp "$SCRIPT_DIR/stop_dsh.sh"  "$INSTALL_DIR/stop_dsh.sh"
 chmod +x "$INSTALL_DIR/start_dsh.sh" "$INSTALL_DIR/stop_dsh.sh"
 
 # 权限模式：Android 上 bwrap/landlock 命名空间沙箱不可用，bash 工具需
@@ -192,9 +193,9 @@ YAML
 fi
 
 # ------------------------------------------------------- 8/8 前端适配(可选)
-if [ -f "$(dirname "$0")/apply-frontend.sh" ]; then
+if [ -f "$SCRIPT_DIR/apply-frontend.sh" ]; then
   info "8/8 应用前端移动端适配"
-  bash "$(dirname "$0")/apply-frontend.sh"
+  bash "$SCRIPT_DIR/apply-frontend.sh"
 fi
 
 # ---------------------------------------------------------------- 9/9 完成
