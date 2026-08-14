@@ -166,7 +166,11 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
  * 而非视口，菜单右边界因此超出屏幕。与其逐个猜测是哪种属性，不如每帧实测：
  * 把 left/top/transform 临时归零，getBoundingClientRect 读出固定定位的真实
  * 基准点（含一切 containing block 偏移），再据此换算目标坐标并在视口内 clamp。
- * 全程在同一同步帧内完成，不触发中间重绘，无闪屏。 */
+ * 关键：移动端样式（mobile.css）把 left/top/right/bottom 都写成 !important，
+ * 普通内联赋值（menu.style.left = ...）压不过样式表的 !important，JS 定位会
+ * 完全失效，菜单停留在 fixed+全 auto 的静态位置上，右/下边界同时出屏。
+ * 因此这里一律用 CSSOM setProperty(...,"important") 写入同样 !important 的
+ * 内联声明（内联 !important > 样式表 !important），并显式清掉 right/bottom。 */
 (function () {
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 5, MARGIN = 12, raf = 0;
@@ -177,10 +181,14 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }
   /* 实测 containing block 相对视口的偏移：临时归零后读出渲染坐标即得基准点 */
   function cbOffset(menu) {
-    var pl = menu.style.left, pt = menu.style.top, pT = menu.style.transform;
-    menu.style.left = "0px"; menu.style.top = "0px"; menu.style.transform = "none";
+    var pl = menu.style.getPropertyValue("left"), pt = menu.style.getPropertyValue("top"), pT = menu.style.transform;
+    menu.style.setProperty("left", "0px", "important");
+    menu.style.setProperty("top", "0px", "important");
+    menu.style.transform = "none";
     var r = menu.getBoundingClientRect();
-    menu.style.left = pl; menu.style.top = pt; menu.style.transform = pT;
+    menu.style.setProperty("left", pl, "important");
+    menu.style.setProperty("top", pt, "important");
+    menu.style.transform = pT;
     return { left: r.left, top: r.top };
   }
   function place() {
@@ -188,18 +196,21 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     if (!menu || !isVisible(menu)) return;
     var root = menu.parentElement;
     if (!root) return;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.setProperty("position", "fixed", "important");
+    menu.style.setProperty("right", "auto", "important");
+    menu.style.setProperty("bottom", "auto", "important");
     var r = root.getBoundingClientRect();
     var m = menu.getBoundingClientRect();
     if (m.width === 0 && m.height === 0) return; /* 宽度未就绪时跳过，等下一帧 */
-    var vw = window.innerWidth, vh = window.innerHeight;
     var vLeft = r.left, vTop = r.bottom + GAP;
     if (vLeft + m.width > vw - MARGIN) vLeft = Math.max(MARGIN, vw - MARGIN - m.width);
     if (vLeft < MARGIN) vLeft = MARGIN;
     if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
     if (vTop < MARGIN) vTop = MARGIN;
     var cb = cbOffset(menu); /* 实测偏移，不再依赖属性猜测 */
-    menu.style.left = (vLeft - cb.left) + "px";
-    menu.style.top = (vTop - cb.top) + "px";
+    menu.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+    menu.style.setProperty("top", (vTop - cb.top) + "px", "important");
   }
   function tick() { raf = 0; place(); if (isVisible(document.querySelector(".h8S2Va_menu"))) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -212,13 +223,15 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   wake();
 })();
 
-/* ---- 6) 用量/上下文仪表（ContextMeter）面板：fixed + 视口内 clamp ----
- * .JObwrW_panel 原为 absolute;bottom:calc(100% + 8px);right:0;width:264px。
- * 移动端输入条换行（.uV2eYG_trailing{display:contents}）后该触发器不再贴右，
- * 面板自触发器右缘向左展开 264px 会越过左边界；且面板在 sticky 作曲栏内
- * 向上展开，会被滚动容器裁剪/遮挡。处理方式与第 5 节子代理菜单一致：
- * 每帧实测 containing block 偏移（含 transform/contain 祖先），把面板固定
- * 在触发器上方并在视口内 clamp；上方放不下时翻到触发器下方。 */
+/* ---- 6) 用量/上下文仪表（ContextMeter）面板：JS 全控 fixed 定位 ----
+ * .JObwrW_panel 插件样式为 absolute;bottom:calc(100% + 8px);right:0;width:264px。
+ * 移动端输入条换行（.uV2eYG_trailing{display:contents}）后触发器不再贴右，
+ * 向左展开会越过左边界；且面板在 sticky 作曲栏内向上展开会被滚动容器
+ * 裁剪/遮挡。处理与第 5 节一致：CSSOM setProperty(...,"important") 写入
+ * 内联 !important 以压过 mobile.css 的 !important 定位声明，显式
+ * position:fixed + right/bottom:auto（避免与插件 bottom/right 叠加成拉伸
+ * 越界）+ max-height/纵向滚动，再实测 containing block 偏移，把面板钉在
+ * 触发器上方并在视口内 clamp；上方放不下翻到下方。 */
 (function () {
   if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
   var GAP = 8, MARGIN = 12, raf = 0;
@@ -228,10 +241,14 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
   }
   function cbOffset(panel) {
-    var pl = panel.style.left, pt = panel.style.top, pT = panel.style.transform;
-    panel.style.left = "0px"; panel.style.top = "0px"; panel.style.transform = "none";
+    var pl = panel.style.getPropertyValue("left"), pt = panel.style.getPropertyValue("top"), pT = panel.style.transform;
+    panel.style.setProperty("left", "0px", "important");
+    panel.style.setProperty("top", "0px", "important");
+    panel.style.transform = "none";
     var r = panel.getBoundingClientRect();
-    panel.style.left = pl; panel.style.top = pt; panel.style.transform = pT;
+    panel.style.setProperty("left", pl, "important");
+    panel.style.setProperty("top", pt, "important");
+    panel.style.transform = pT;
     return { left: r.left, top: r.top };
   }
   function place() {
@@ -239,10 +256,16 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
     if (!panel || !isVisible(panel)) return;
     var root = panel.parentElement;
     if (!root) return;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    panel.style.setProperty("position", "fixed", "important");
+    panel.style.setProperty("right", "auto", "important");
+    panel.style.setProperty("bottom", "auto", "important");
+    panel.style.setProperty("max-height", Math.floor(vh * 0.6) + "px", "important");
+    panel.style.setProperty("overflow-y", "auto", "important");
+    panel.style.setProperty("z-index", "1000", "important");
     var r = root.getBoundingClientRect();
     var m = panel.getBoundingClientRect();
     if (m.width === 0 && m.height === 0) return;
-    var vw = window.innerWidth, vh = window.innerHeight;
     var vLeft = r.right - m.width;                    /* 右缘对齐触发器右缘（原 right:0 语义） */
     if (vLeft + m.width > vw - MARGIN) vLeft = vw - MARGIN - m.width;
     if (vLeft < MARGIN) vLeft = MARGIN;
@@ -252,8 +275,8 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
       if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
     }
     var cb = cbOffset(panel);
-    panel.style.left = (vLeft - cb.left) + "px";
-    panel.style.top = (vTop - cb.top) + "px";
+    panel.style.setProperty("left", (vLeft - cb.left) + "px", "important");
+    panel.style.setProperty("top", (vTop - cb.top) + "px", "important");
   }
   function tick() { raf = 0; place(); if (isVisible(document.querySelector(".JObwrW_panel"))) raf = requestAnimationFrame(tick); }
   function wake() { if (!raf) raf = requestAnimationFrame(tick); }
