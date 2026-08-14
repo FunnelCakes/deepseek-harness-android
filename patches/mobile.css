@@ -13,6 +13,24 @@
   right: 0 !important;
 }
 
+/* 用量/上下文仪表面板（.JObwrW_panel）：纯 CSS 修复，所有宽度生效，无 JS。
+ * 上游插件样式是 absolute;bottom:calc(100% + 8px);right:0;width:264px，
+ * 面板向上展开会被会话滚动容器（overflow 裁剪）遮挡，触发器不贴右时还会
+ * 出边界。这里与子代理下拉同款思路：改成 position:fixed 挂在最上层，
+ * 按视口锚定（贴右、位于作曲栏上方），尺寸受视口约束，保证始终完整可见、
+ * 不出任何边界。bottom 取作曲栏上方（触发行约占底部 ~64px）。 */
+.JObwrW_panel {
+  position: fixed !important;
+  left: auto !important;
+  top: auto !important;
+  right: 12px !important;
+  bottom: 64px !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: 60vh !important;
+  overflow-y: auto !important;
+  z-index: 2147483647 !important;
+}
+
 @media (max-width: 480px) {
   /* 侧栏展开 = 覆盖式抽屉，不再把对话区挤成窄条 */
   div[data-details-collapsed]:not([data-sidebar-collapsed]) {
@@ -173,25 +191,9 @@
     top: auto !important;
     width: auto !important;
     min-width: 200px !important;
-    max-width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 32px) !important;
     max-height: 60vh !important;
     overflow: auto !important;
-    z-index: 2147483647 !important; /* JS 生效前的首帧兜底：最上层 */
-  }
-
-  /* 用量/上下文仪表（ContextMeter）面板：position:fixed 脱离 sticky 作曲栏
-     的滚动容器裁剪，避免向上展开被遮挡；right:auto 取消原 right:0 锚定，
-     位置由注入 JS 每帧定位到触发器上方并在视口内 clamp（左/右/上边界），
-     放不下时翻到下方；z-index 抬高保证盖过会话内容。 */
-  .JObwrW_panel {
-    position: fixed !important;
-    left: auto !important;
-    right: auto !important;
-    top: auto !important;
-    bottom: auto !important;
-    max-width: calc(100vw - 24px) !important;
-    max-height: 60vh !important;
-    overflow-y: auto !important;
-    z-index: 2147483647 !important; /* JS 生效前的首帧兜底：最上层 */
+    z-index: 100 !important;
   }
 }
