@@ -178,4 +178,19 @@
     overflow: auto !important;
     z-index: 100 !important;
   }
+
+  /* 用量/上下文仪表（ContextMeter）面板：position:fixed 脱离 sticky 作曲栏
+     的滚动容器裁剪，避免向上展开被遮挡；right:auto 取消原 right:0 锚定，
+     位置由注入 JS 每帧定位到触发器上方并在视口内 clamp（左/右/上边界），
+     放不下时翻到下方；z-index 抬高保证盖过会话内容。 */
+  .JObwrW_panel {
+    position: fixed !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+    z-index: 1000 !important;
+  }
 }

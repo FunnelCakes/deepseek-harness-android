@@ -211,3 +211,57 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   window.addEventListener("scroll", wake, true);
   wake();
 })();
+
+/* ---- 6) 用量/上下文仪表（ContextMeter）面板：fixed + 视口内 clamp ----
+ * .JObwrW_panel 原为 absolute;bottom:calc(100% + 8px);right:0;width:264px。
+ * 移动端输入条换行（.uV2eYG_trailing{display:contents}）后该触发器不再贴右，
+ * 面板自触发器右缘向左展开 264px 会越过左边界；且面板在 sticky 作曲栏内
+ * 向上展开，会被滚动容器裁剪/遮挡。处理方式与第 5 节子代理菜单一致：
+ * 每帧实测 containing block 偏移（含 transform/contain 祖先），把面板固定
+ * 在触发器上方并在视口内 clamp；上方放不下时翻到触发器下方。 */
+(function () {
+  if (typeof window === "undefined" || !window.requestAnimationFrame || !window.MutationObserver) return;
+  var GAP = 8, MARGIN = 12, raf = 0;
+  function isVisible(el) {
+    if (!el || el.getClientRects().length === 0) return false;
+    var cs = window.getComputedStyle(el);
+    return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+  }
+  function cbOffset(panel) {
+    var pl = panel.style.left, pt = panel.style.top, pT = panel.style.transform;
+    panel.style.left = "0px"; panel.style.top = "0px"; panel.style.transform = "none";
+    var r = panel.getBoundingClientRect();
+    panel.style.left = pl; panel.style.top = pt; panel.style.transform = pT;
+    return { left: r.left, top: r.top };
+  }
+  function place() {
+    var panel = document.querySelector(".JObwrW_panel");
+    if (!panel || !isVisible(panel)) return;
+    var root = panel.parentElement;
+    if (!root) return;
+    var r = root.getBoundingClientRect();
+    var m = panel.getBoundingClientRect();
+    if (m.width === 0 && m.height === 0) return;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var vLeft = r.right - m.width;                    /* 右缘对齐触发器右缘（原 right:0 语义） */
+    if (vLeft + m.width > vw - MARGIN) vLeft = vw - MARGIN - m.width;
+    if (vLeft < MARGIN) vLeft = MARGIN;
+    var vTop = r.top - m.height - GAP;                /* 触发器上方（原 bottom:100% + 8px 语义） */
+    if (vTop < MARGIN) {                              /* 上方放不下则翻到下方 */
+      vTop = r.bottom + GAP;
+      if (vTop + m.height > vh - MARGIN) vTop = Math.max(MARGIN, vh - MARGIN - m.height);
+    }
+    var cb = cbOffset(panel);
+    panel.style.left = (vLeft - cb.left) + "px";
+    panel.style.top = (vTop - cb.top) + "px";
+  }
+  function tick() { raf = 0; place(); if (isVisible(document.querySelector(".JObwrW_panel"))) raf = requestAnimationFrame(tick); }
+  function wake() { if (!raf) raf = requestAnimationFrame(tick); }
+  try {
+    var mo = new MutationObserver(wake);
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) {}
+  window.addEventListener("resize", wake);
+  window.addEventListener("scroll", wake, true);
+  wake();
+})();
