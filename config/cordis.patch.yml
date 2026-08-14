@@ -1,0 +1,10 @@
+# DeepSeek Harness profile 配置覆盖层（Android/Termux）
+# 安装到 ~/.dsh/profiles/web/cordis.patch.yml
+#
+# 为什么：Android 上 bwrap/landlock 命名空间沙箱不可用（无 root 无法 unshare
+#  mount/pid 命名空间），任何受限权限模式都会让 bash 工具抛 SANDBOX_UNAVAILABLE。
+# 因此必须用 danger-full-access 放开进程沙箱，bash 工具才能真实执行。
+# 仅建议个人设备使用（等同于关闭沙箱，agent 可执行任意命令）。
+- id: sandbox-policy
+  config:
+    mode: danger-full-access
