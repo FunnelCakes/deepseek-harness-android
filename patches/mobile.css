@@ -180,18 +180,19 @@
     flex-basis: 100% !important;
   }
 
-  /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，但仍吸附在触发器
-     下方（位置由注入 JS 持续定位到 .h8S2Va_root 的 rect 处）。
-     宽度自适应内容但受 max-width 约束，避免超出屏幕右边界。
-     right:auto 取消上方通用右锚定，交给 JS 定位。 */
+  /* 子代理下拉：position:fixed 脱离 overflow 容器裁剪，仍吸附在触发器
+     下方（top:auto = 静态位置，即触发器正下方）；水平方向做成视口内
+     全宽面板（left:8px + right:8px），无论触发器位置/页面缩放如何，
+     右边界都不会超出视口（实测：html zoom=3.25 时视口仅 388px 宽，
+     原 left 锚定 + max-width 组合导致 R=442 溢出 54px）。 */
   .h8S2Va_menu {
     position: fixed !important;
-    left: auto !important;
-    right: auto !important;
+    left: 8px !important;
+    right: 8px !important;
     top: auto !important;
     width: auto !important;
-    min-width: 200px !important;
-    max-width: calc(100vw - 32px) !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px) !important;
     max-height: 60vh !important;
     overflow: auto !important;
     z-index: 100 !important;
