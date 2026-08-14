@@ -1,0 +1,191 @@
+--- a/dsh-host-apiproxy/lib/index.js
++++ b/dsh-host-apiproxy/lib/index.js
+@@ -570,7 +570,9 @@
+ const sessionHistoryValueSchema = z$1.object({
+ 	events: z$1.array(historyEntrySchema),
+ 	hasMore: z$1.boolean(),
+-	projections: sessionProjectionsBlockSchema.optional()
++	projections: sessionProjectionsBlockSchema.optional(),
++	/** True when the page's assistant/chunk stream was filtered (display slimming). */
++	chunkFiltered: z$1.boolean().optional()
+ });
+ /** session.models request payload. */
+ const sessionModelsRequestSchema = z$1.object({ sessionId: sessionIdSchema });
+@@ -1440,18 +1442,154 @@
+ 		}
+ 	}
+ }
+-/** Render one detached history page through the same presenter path as ordinary history. */
++/** Truncation budgets for oversized transcript payloads served over the history path
++*  (display transport only — the durable log and the live mux stream stay untouched).
++*  Generous display budgets: only genuinely huge outputs (MB-scale, the ones that make
++*  cold re-entry stall) are cut, to head + marker + tail. */
++const HISTORY_SLIM = {
++	thresholdChars: 65536,
++	headChars: 16384,
++	tailChars: 8192,
++	marker: "\n\n[... tool result middle pruned ...]\n\n"
++};
++/**
++* Cut one oversized text span to head + marker + tail, code-point safe (no split
++* surrogate pairs). Returns the original text when within budget — callers
++* compare identity to detect a change.
++* @param text - the text to slim.
++* @returns the slimmed text, or the same reference when within budget.
++*/
++function slimText(text) {
++	const points = Array.from(text);
++	if (points.length <= HISTORY_SLIM.thresholdChars) return text;
++	const head = points.slice(0, HISTORY_SLIM.headChars).join("");
++	const tail = points.slice(points.length - HISTORY_SLIM.tailChars).join("");
++	return `${head}${HISTORY_SLIM.marker}${tail}`;
++}
++/** Slim every over-budget text block in a tool-result content block array. */
++function slimContentBlocks(blocks) {
++	let changed = false;
++	const slimmed = blocks.map((block) => {
++		if (block.type !== "text") return block;
++		const text = slimText(block.text);
++		if (text === block.text) return block;
++		changed = true;
++		return {
++			...block,
++			text
++		};
++	});
++	return changed ? slimmed : blocks;
++}
++/** Slim every over-budget string value in a parsed tool-call arguments tree. */
++function slimJsonStrings(value, mark) {
++	if (typeof value === "string") {
++		const text = slimText(value);
++		if (text === value) return value;
++		mark();
++		return text;
++	}
++	if (Array.isArray(value)) {
++		let changed = false;
++		const out = value.map((item) => {
++			const slimmed = slimJsonStrings(item, mark);
++			if (slimmed !== item) changed = true;
++			return slimmed;
++		});
++		return changed ? out : value;
++	}
++	if (value !== null && typeof value === "object") {
++		let changed = false;
++		const out = {};
++		for (const [key, entry] of Object.entries(value)) {
++			const slimmed = slimJsonStrings(entry, mark);
++			if (slimmed !== entry) changed = true;
++			out[key] = slimmed;
++		}
++		return changed ? out : value;
++	}
++	return value;
++}
++/** Slim a tool/call event's `arguments` JSON while keeping it parseable. */
++function slimCallArguments(raw) {
++	try {
++		let changed = false;
++		const slimmed = slimJsonStrings(JSON.parse(raw), () => {
++			changed = true;
++		});
++		return changed ? JSON.stringify(slimmed) : raw;
++	} catch {
++		return raw;
++	}
++}
++/**
++* Slim one history event's oversized payloads for the display path: tool/result
++* text blocks and tool/call argument strings over the budget are cut to
++* head + marker + tail. The durable log and the live mux stream are never
++* slimmed — only history responses are, so full outputs remain available from
++* the log on demand (fork/retry/inspect all read the server-side log, never
++* this response).
++* @param event - the wire event.
++* @returns a slimmed copy when any payload was cut, else the same event.
++*/
++function slimHistoryEvent(event) {
++	if (event.type === "tool/result") {
++		const message = event.data.message;
++		if (!Array.isArray(message.content)) return event;
++		let changed = false;
++		const content = message.content.map((entry) => {
++			const blocks = slimContentBlocks(entry.content);
++			if (blocks === entry.content) return entry;
++			changed = true;
++			return {
++				...entry,
++				content: blocks
++			};
++		});
++		return changed ? {
++			...event,
++			data: {
++				...event.data,
++				message: {
++					...message,
++					content
++				}
++			}
++		} : event;
++	}
++	if (event.type === "tool/call") {
++		const argumentsText = slimCallArguments(event.data.arguments);
++		return argumentsText === event.data.arguments ? event : {
++			...event,
++			data: {
++				...event.data,
++				arguments: argumentsText
++			}
++		};
++	}
++	return event;
++}
++/** Render one detached history page through the same presenter path as ordinary history.
++*  Display slimming applied here (history responses only — the durable log and the live mux
++*  stream stay untouched): oversized tool payloads are cut (slimHistoryEvent) and the
++*  assistant/chunk streaming stream is filtered — a settled assistant message carries its
++*  complete content, so the thousands of per-token chunk records are pure window noise that
++*  dominates the payload and the client assembler's work on cold re-entry. The response flags
++*  the filter so the client can relax its seq-contiguity checks accordingly. */
+ function historyPage(ctx, events, beforeSeq, maxMessages, scope) {
+ 	const page = paginate(events, beforeSeq, maxMessages ?? DEFAULT_MAX_MESSAGES);
++	const slimmed = page.events.map(slimHistoryEvent);
++	const windowed = slimmed.filter((event) => event.type !== "assistant/chunk");
+ 	return {
+-		events: page.events.map((event) => {
+-			const view = viewFor(ctx, event, (callId) => backscanArgs(page.events, callId), scope);
++		events: windowed.map((event) => {
++			const view = viewFor(ctx, event, (callId) => backscanArgs(windowed, callId), scope);
+ 			return {
+ 				event,
+ 				...view === void 0 ? {} : { view }
+ 			};
+ 		}),
+-		hasMore: page.hasMore
++		hasMore: page.hasMore,
++		...windowed.length !== slimmed.length ? { chunkFiltered: true } : {}
+ 	};
+ }
+ function projectionsFor(ctx, session) {
+@@ -2642,6 +2780,7 @@
+ 					return ok(request, {
+ 						events: page.events,
+ 						hasMore: page.hasMore,
++						...page.chunkFiltered === true ? { chunkFiltered: true } : {},
+ 						...cut.projections === void 0 ? {} : { projections: cut.projections }
+ 					});
+ 				} catch (error) {
+@@ -4636,7 +4775,9 @@
+ const subagentHistoryValueSchema = z$1.object({
+ 	events: z$1.array(historyEntrySchema),
+ 	hasMore: z$1.boolean(),
+-	projections: sessionProjectionsBlockSchema.optional()
++	projections: sessionProjectionsBlockSchema.optional(),
++	/** True when the page's assistant/chunk stream was filtered (display slimming). */
++	chunkFiltered: z$1.boolean().optional()
+ });
+ /** subagent.prompt request payload. */
+ const subagentPromptRequestSchema = z$1.object({

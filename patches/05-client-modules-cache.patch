@@ -1,0 +1,15 @@
+--- a/dsh-client-modules/lib/index.js
++++ b/dsh-client-modules/lib/index.js
+@@ -334,7 +334,11 @@
+ 			const body = await readFile(path);
+ 			res.writeHead(200, {
+ 				"content-type": isSourceMap ? "application/json; charset=utf-8" : "text/javascript; charset=utf-8",
+-				"cache-control": "no-cache"
++				/* The bundle URL carries the content-hash rev as its query (graphRow), so a
++				* changed bundle is a NEW url — immutable caching is safe and skips re-downloading
++				* every plugin bundle on every page reload (a cold re-entry's biggest fixed cost).
++				* Source maps are addressed without a rev, so they stay revalidating. */
++				"cache-control": isSourceMap ? "no-cache" : "public, max-age=31536000, immutable"
+ 			});
+ 			res.end(body);
+ 		} catch {

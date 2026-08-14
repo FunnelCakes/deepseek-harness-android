@@ -249,8 +249,14 @@ if [ -f "$SCRIPT_DIR/apply-frontend.sh" ]; then
   bash "$SCRIPT_DIR/apply-frontend.sh"
 fi
 
-# ---------------------------------------------------------------- 9/9 完成
-info "9/9 完成 🎉"
+# -------------------------------------------------- 9/9 JS 性能补丁(可选)
+if [ -f "$SCRIPT_DIR/apply-js-patches.sh" ]; then
+  info "9/9 应用 JS 性能补丁（历史窗口瘦身 / 重连增量同步 / 静态缓存）"
+  bash "$SCRIPT_DIR/apply-js-patches.sh"
+fi
+
+# ---------------------------------------------------------------- 10/10 完成
+info "10/10 完成 🎉"
 cat <<EOF
 
 安装完成！接下来：

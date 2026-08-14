@@ -1,0 +1,141 @@
+--- a/dsh-client-runtime/lib/client.js
++++ b/dsh-client-runtime/lib/client.js
+@@ -7129,6 +7129,11 @@
+ 			stitching = false;
+ 			/** subscribed.lastSeq baseline (gap detection; null when no subscribed frame arrived — degrade to the liveBuffer dedup path). */
+ 			subscribedLastSeq = null;
++			/** The installed history window is display-slimmed (assistant/chunk stream filtered
++			*  server-side): its raw seq range is intentionally non-contiguous, so seq-contiguity
++			*  checks (loadOlder, live gap detection, the open catch-up) must be relaxed against
++			*  the subscribed baseline instead of exact +1 adjacency. */
++			windowChunkFiltered = false;
+ 			/**
+ 			* Per-session projection value store (push model; see the session-projection
+ 			* subsystem page, docs/subsystems/session-projection.md): finished whole
+@@ -7403,7 +7408,7 @@
+ 						return;
+ 					}
+ 					const tail = older[older.length - 1];
+-					if (tail === void 0 || tail.event.seq + 1 !== this.baseSeq) {
++					if (tail === void 0 || tail.event.seq + 1 !== this.baseSeq && !this.windowChunkFiltered) {
+ 						console.error(`[web-runtime] history page discontinuous: tail seq ${tail?.event.seq} vs baseSeq ${this.baseSeq}`);
+ 						this.hasMore = false;
+ 						this.conversation.prepend([], false);
+@@ -7422,25 +7427,36 @@
+ 					this.notifier.markDirty();
+ 				}
+ 			}
+-			/** Reconnect rebuild (manager calls this on onConnected for instances that were opened):
+-			*  reset the window and rerun open; pending waits for the baseline replay. Invalidates any
+-			*  in-flight open first — its history request rode the dead connection and must not settle
+-			*  the fresh generation into 'error'. */
++			/** Reconnect reconciliation (manager calls this on onConnected for instances that were opened):
++			*  the loaded window is KEPT — no openState transition, no loading flash, no full rebuild.
++			*  Reconciliation rides the live mux stream (seq-gap → repairGap) plus the subscribed
++			*  baseline: if the server advanced while disconnected, quietly repull the tail page
++			*  (resync-lite, same path as gap repair) instead of wiping and re-opening. Pending waits
++			*  for the baseline replay. Invalidates any in-flight open first — its history request rode
++			*  the dead connection and must not settle the fresh generation into 'error'. */
+ 			async resync() {
+ 				if (this.openState === "cold") return;
+ 				this.openGeneration++;
+ 				this.openPromise = null;
+-				this.openState = "cold";
+ 				this.openError = null;
+-				this.events = [];
+-				this.views = [];
+-				this.baseSeq = 0;
+ 				this.pending.clear();
+ 				this.pendingRev++;
+-				this.subscribedLastSeq = null;
+ 				this.liveBuffer = [];
+ 				this.notifier.markDirty();
+-				await this.open();
++				if (this.openState !== "open") {
++					/* Interrupted or failed open on the dead connection — recover with a fresh open
++					*  (a partial kept window is replaced by doOpen's authoritative tail page). */
++					this.openState = "cold";
++					await this.open();
++					return;
++				}
++				const tailSeq = this.windowTailSeq();
++				/* A chunk-filtered window's tail always sits below the subscribed baseline (the filtered
++				*  chunk seqs are missing), so the quiet tail-page repull runs whenever the window may
++				*  lag the server; for an unfiltered window it only runs when the baseline proves the
++				*  server advanced while disconnected. Either way the repull is resync-lite — no loading
++				*  flash, no openState transition. */
++				if (tailSeq !== null && (this.windowChunkFiltered || this.subscribedLastSeq !== null && this.subscribedLastSeq > tailSeq)) await this.repairGap();
+ 			}
+ 			/**
+ 			* uSES subscription entry.
+@@ -7475,6 +7491,14 @@
+ 					case "session/subscribed":
+ 						this.subscribedLastSeq = frame.lastSeq;
+ 						if (this.queueMirror.reset()) this.notifier.markDirty();
++						/* Reconnect catch-up (quiet, no loading flash): the kept window is behind the
++						*  server's baseline (events landed while disconnected) — repull the tail page
++						*  through the shared resync-lite path. Guarded to the open state and to a
++						*  window that exists; single-flight is the stitching flag in repairGap. */
++						if (this.openState === "open") {
++							const tailSeq = this.windowTailSeq();
++							if (tailSeq !== null && frame.lastSeq > tailSeq) this.repairGap();
++						}
+ 						return;
+ 					case "approval/requested": {
+ 						const { type: _type, sessionId: _sid, ...payload } = frame;
+@@ -7595,11 +7619,15 @@
+ 						return;
+ 					}
+ 					this.installWindow(result.value.events, result.value.hasMore, result.value.projections);
++					this.windowChunkFiltered = result.value.chunkFiltered === true;
+ 					const tailSeq = this.windowTailSeq();
+-					if (this.subscribedLastSeq !== null && tailSeq !== null && this.subscribedLastSeq > tailSeq) {
++					if (!this.windowChunkFiltered && this.subscribedLastSeq !== null && tailSeq !== null && this.subscribedLastSeq > tailSeq) {
+ 						result = (await this.history({ maxMessages: 50 })).result;
+ 						if (generation !== this.openGeneration) return;
+-						if (result.ok) this.installWindow(result.value.events, result.value.hasMore, result.value.projections);
++						if (result.ok) {
++							this.installWindow(result.value.events, result.value.hasMore, result.value.projections);
++							this.windowChunkFiltered = result.value.chunkFiltered === true;
++						}
+ 					}
+ 					this.openState = "open";
+ 				} catch (error) {
+@@ -7661,7 +7689,12 @@
+ 				}
+ 				if (this.openState !== "open") return;
+ 				const tailSeq = this.windowTailSeq();
+-				if (tailSeq !== null && event.seq > tailSeq + 1) {
++				/* A seq gap is only a real miss when it extends past the subscribed baseline: with a
++				*  display-slimmed (chunk-filtered) window the raw range is intentionally
++				*  non-contiguous, and missing seqs at or below subscribedLastSeq are filtered history —
++				*  append directly. A gap beyond the baseline means live events were missed → repair. */
++				const beyondBaseline = this.subscribedLastSeq === null || event.seq - 1 > this.subscribedLastSeq;
++				if (tailSeq !== null && event.seq > tailSeq + 1 && beyondBaseline) {
+ 					this.liveBuffer.push({
+ 						event,
+ 						view
+@@ -7678,15 +7711,20 @@
+ 			}
+ 			/** Resync-lite: repull the tail page and stitch the liveBuffer through the shared
+ 			*  installWindow path. No openState transition — the UI keeps the current window (no loading
+-			*  flash); events arriving meanwhile detour to liveBuffer via the stitching flag. */
++			*  flash); events arriving meanwhile detour to liveBuffer via the stitching flag. Single-flight
++			*  via the stitching flag; there is intentionally NO openGeneration guard — resync now keeps
++			*  the window, so a repair landing across a reconnect is exactly the fresh tail page wanted
++			*  (a repair that rode a dead connection fails its own history fetch and installs nothing). */
+ 			async repairGap() {
+ 				/* v8 ignore next -- re-entry guard: acceptLiveEvent already detours to liveBuffer while stitching, so no second call reaches here. */
+ 				if (this.stitching) return;
+ 				this.stitching = true;
+-				const generation = this.openGeneration;
+ 				try {
+ 					const { result } = await this.history({ maxMessages: 50 });
+-					if (result.ok && generation === this.openGeneration && this.openState === "open") this.installWindow(result.value.events, result.value.hasMore, result.value.projections);
++					if (result.ok && this.openState === "open") {
++						this.installWindow(result.value.events, result.value.hasMore, result.value.projections);
++						this.windowChunkFiltered = result.value.chunkFiltered === true;
++					}
+ 				} catch (error) {
+ 					console.error("[web-runtime] gap repair failed:", error);
+ 				} finally {

@@ -1,0 +1,22 @@
+--- a/dsh-client-connection/lib/client.js
++++ b/dsh-client-connection/lib/client.js
+@@ -5371,7 +5371,8 @@
+ 		const sessionHistoryValueSchema = object({
+ 			events: array(historyEntrySchema),
+ 			hasMore: boolean(),
+-			projections: sessionProjectionsBlockSchema.optional()
++			projections: sessionProjectionsBlockSchema.optional(),
++			chunkFiltered: boolean().optional()
+ 		});
+ 		object({ sessionId: sessionIdSchema });
+ 		/** session.models response value. */
+@@ -6041,7 +6042,8 @@
+ 		const subagentHistoryValueSchema = object({
+ 			events: array(historyEntrySchema),
+ 			hasMore: boolean(),
+-			projections: sessionProjectionsBlockSchema.optional()
++			projections: sessionProjectionsBlockSchema.optional(),
++			chunkFiltered: boolean().optional()
+ 		});
+ 		object({
+ 			parentSessionId: sessionIdSchema,
