@@ -49,7 +49,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 | node-pty 无法编译 | `Undefined variable android_ndk_path` | 修补 node-gyp 缓存 `common.gypi` |
 | koffi 无法编译 | `statx` 相关 `__u32` 编译错误 | `-target aarch64-linux-android30` |
 | npm 拦截构建脚本 | node-pty/koffi 无产物 | `--allow-scripts` 放行 |
-| `link()` 被禁 | 会话/附件保存报 `EACCES` | 改为 `rename()`（原子、同目录） |
+| `link()` 被禁（SELinux） | 会话/附件保存、write 工具新建文件报 `EACCES` | 会话/附件发布改 `rename()`；write 新建文件回退"O_EXCL 占位+rename"；附件祖先遍历/清理容忍（`patches/patch-dsh-android-link.js`，幂等） |
 | PTY 终端检测失败 | `unsupported on platform android` | subprocess 把 android 视同 linux |
 | sharp 无法加载 | `Could not load sharp module` | 安装 `@img/sharp-wasm32` wasm 回退 |
 | HMR 启动崩溃 | `--expose-internals is required` | 包装脚本加 `--expose-internals` |
@@ -86,6 +86,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 
 - [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
 - [deepseek-harness Discussion #136 — Android/Termux 部署](https://github.com/deepseek-ai/deepseek-harness/discussions/136)
+- [deepseek-harness Discussion #248 — Android 禁 hardlink（link→rename 提案）](https://github.com/deepseek-ai/deepseek-harness/discussions/248)
 - [Termux Wiki](https://wiki.termux.com/)
 
 </details>
@@ -135,7 +136,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 | node-pty fails to build | `Undefined variable android_ndk_path` | patch node-gyp cache `common.gypi` |
 | koffi fails to build | `statx` `__u32` compile error | `-target aarch64-linux-android30` |
 | npm blocks build scripts | no node-pty/koffi output | allow via `--allow-scripts` |
-| `link()` blocked | `EACCES` saving sessions/attachments | use `rename()` (atomic, same-dir) |
+| `link()` blocked (SELinux) | `EACCES` saving sessions/attachments, and when `write` tool creates a new file | session/attachment publish uses `rename()`; new-file write falls back to "O_EXCL reserve + rename"; attachment ancestor-walk & cleanup tolerate EACCES/ENOENT (`patches/patch-dsh-android-link.js`, idempotent) |
 | PTY terminal detection fails | `unsupported on platform android` | treat android as linux in subprocess |
 | sharp fails to load | `Could not load sharp module` | install `@img/sharp-wasm32` wasm fallback |
 | HMR crashes on start | `--expose-internals is required` | wrapper script adds `--expose-internals` |
@@ -172,6 +173,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 
 - [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
 - [deepseek-harness Discussion #136 — Android/Termux deployment](https://github.com/deepseek-ai/deepseek-harness/discussions/136)
+- [deepseek-harness Discussion #248 — hardlinks blocked on Android (link→rename proposal)](https://github.com/deepseek-ai/deepseek-harness/discussions/248)
 - [Termux Wiki](https://wiki.termux.com/)
 
 </details>
