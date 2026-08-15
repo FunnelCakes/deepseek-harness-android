@@ -8,6 +8,7 @@
 #   2. node-gyp install 下载 headers 填充缓存 → 修补 common.gypi（修 node-pty 构建）
 #   3. 用 android30 编译目标安装 dsh（修 koffi statx）+ 放行构建脚本（下载+编译需耐心）
 #   4. 修补 link() → rename()（华为/部分 ROM 禁 hardlink，会话/附件才能持久化）
+#      + write 新建文件回退 + 附件祖先遍历/清理容忍（同族 Android EACCES，见 patches/patch-dsh-android-link.js）
 #   5. 修补 subprocess 终端检测（android 视同 linux）
 #   6. 安装 sharp WebAssembly 回退（android-arm64 无原生预编译）
 #   7. 重建 /usr/bin/dsh 包装脚本（--expose-internals，HMR 必需）
@@ -124,6 +125,20 @@ s = s.replace('await link(temporary, target);', 'await rename(temporary, target)
 open(p, 'w', encoding='utf-8').write(s)
 print("  patched attachment-local (link→rename)")
 PY
+fi
+
+# 4e: 无硬链接 no-replace 发布 + 附件祖先遍历/清理容忍
+#     （write 工具新建文件 / 附件保存，同 4a/4b 的 link→rename 一族的 Android EACCES 修复，
+#       幂等；基于 dsh 0.1.0-rc.3/rc.6 均可。详见 patches/patch-dsh-android-link.js）
+HLFIX="$SCRIPT_DIR/patches/patch-dsh-android-link.js"
+if [ -f "$HLFIX" ]; then
+  if node "$HLFIX" --root "$DSH_DIR/node_modules/@deepseek-ai"; then
+    ok "  android 硬链接修复完成（fs-local / attachment）"
+  else
+    warn "  硬链接修复脚本报告异常（dsh 版本不匹配？请人工检查）"
+  fi
+else
+  warn "  缺少 patches/patch-dsh-android-link.js，跳过硬链接修复"
 fi
 
 # 4c: subprocess 终端检测 android 视同 linux
