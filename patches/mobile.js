@@ -1,7 +1,7 @@
 /* =====================================================================
  * dsh 移动端 JS 注入（由 apply-frontend.sh 注入到 index.html，
  * 必须在 <script type="module"> 之前执行）。
- * 包含：AbortSignal.any polyfill、tooltip 气泡重吸附、触摸交互增强。
+ * 包含：AbortSignal.any / crypto.randomUUID polyfill、tooltip 气泡重吸附、触摸交互增强。
  * ===================================================================== */
 
 /* ---- 1) AbortSignal.any polyfill ----
@@ -23,7 +23,38 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   };
 }
 
-/* ---- 2) tooltip 气泡重吸附 ----
+/* ---- 2) crypto.randomUUID polyfill ----
+ * randomUUID 只在安全上下文中暴露；通过局域网 HTTP 反向代理访问时，部分浏览器
+ * 因此无法启动前端。getRandomValues 在非安全上下文仍可用，用它生成 RFC 4122 v4 UUID。 */
+(function () {
+  "use strict";
+  var cryptoObject = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+  if (!cryptoObject || typeof cryptoObject.randomUUID === "function") return;
+  if (typeof cryptoObject.getRandomValues !== "function") return;
+
+  var hex = Array.from({ length: 256 }, function (_, value) {
+    return value.toString(16).padStart(2, "0");
+  });
+
+  Object.defineProperty(cryptoObject, "randomUUID", {
+    configurable: true,
+    value: function () {
+      var bytes = cryptoObject.getRandomValues(new Uint8Array(16));
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      return (
+        hex[bytes[0]] + hex[bytes[1]] + hex[bytes[2]] + hex[bytes[3]] + "-" +
+        hex[bytes[4]] + hex[bytes[5]] + "-" +
+        hex[bytes[6]] + hex[bytes[7]] + "-" +
+        hex[bytes[8]] + hex[bytes[9]] + "-" +
+        hex[bytes[10]] + hex[bytes[11]] + hex[bytes[12]] +
+        hex[bytes[13]] + hex[bytes[14]] + hex[bytes[15]]
+      );
+    }
+  });
+})();
+
+/* ---- 3) tooltip 气泡重吸附 ----
  * React 的 Tooltip 在 hover 时一次性计算锚点矩形，之后只在 window resize 时重定位；
  * 侧边栏展开/收起或滚动时锚点移动而气泡不跟随，导致 position:fixed 的气泡漂移。
  * 此脚本在气泡可见期间以 rAF 循环持续读取锚点(previousElementSibling)的实时矩形，
@@ -95,7 +126,7 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   wake();
 })();
 
-/* ---- 3) 移动端交互增强 ----
+/* ---- 4) 移动端交互增强 ----
  * 1) Tooltip 气泡：触摸按下显示、松手即销毁（React 的 Tooltip 无 touchend 处理，气泡会常驻）。
  *    触摸时只恢复"被触摸锚点自己的气泡"，其它旧气泡(display:none)保持隐藏，
  *    避免长按 B 时 A 的残留气泡被一并显示。
@@ -138,7 +169,7 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }, true);
 })();
 
-/* ---- 4) 点击作曲栏 "+" 号完全不唤起键盘 ----
+/* ---- 5) 点击作曲栏 "+" 号完全不唤起键盘 ----
  * + 号按钮(onMouseDown: keepFocus) 在 mousedown 时显式 refocus 作曲输入框
  * (.uV2eYG_input)，触摸端因此拉起键盘。此处触摸端在捕获阶段拦截 mousedown，
  * 阻止事件冒泡到 React 根(keepFocus 不执行)，键盘根本不出现；
@@ -160,7 +191,7 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   }, true);                  /* 捕获阶段，先于 React 根监听 */
 })();
 
-/* ---- 5) 子代理下拉吸附在触发器下方（实测 containing block 偏移） ----
+/* ---- 6) 子代理下拉吸附在触发器下方（实测 containing block 偏移） ----
  * position:fixed 的 containing block 可能是带 transform / contain /
  * content-visibility / zoom 的祖先，导致 JS 写入的 left/top 相对该祖先
  * 而非视口，菜单右边界因此超出屏幕。与其逐个猜测是哪种属性，不如每帧实测：

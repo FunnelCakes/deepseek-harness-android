@@ -55,6 +55,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 | HMR 启动崩溃 | `--expose-internals is required` | 包装脚本加 `--expose-internals` |
 | bash 工具不可用 | `SANDBOX_UNAVAILABLE` | 权限模式设 `danger-full-access` |
 | 前端不适配竖屏 | 桌面布局、触控目标小等 | `apply-frontend.sh` 注入移动端 CSS/JS |
+| 局域网 HTTP 缺少 Web Crypto API | `crypto.randomUUID is not a function` | 注入基于 `crypto.getRandomValues()` 的 UUID v4 回退 |
 | 上下文大时重进/切回卡顿 | 冷重进、从外部应用切回要等很久 | `apply-js-patches.sh`：history 窗口瘦身（chunk 流过滤+大结果截断）+ 重连增量同步（保留窗口静默补齐） |
 | 整页重载重复下载 JS | 每次刷新重下 ~4.7MB bundle | 静态资源与插件 bundle 加 immutable 缓存头 |
 
@@ -69,6 +70,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 
 - **页面白屏/打不开**：确认在 Termux 环境；看日志 `~/dsh/storage/dsh.log`。
 - **`AbortSignal.any is not a function`**：浏览器过旧，`apply-frontend.sh` 已注入 polyfill。
+- **`crypto.randomUUID is not a function`**：局域网 HTTP 或旧版 WebView 不暴露该 API，`apply-frontend.sh` 已注入安全随机 UUID v4 回退。
 - **模型没反应**：检查 Models 页 API Key 与 `~/.dsh/.credentials.yaml`。
 - **换机/重装**：重跑 `bash setup.sh`。
 
@@ -139,6 +141,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 | HMR crashes on start | `--expose-internals is required` | wrapper script adds `--expose-internals` |
 | bash tool unavailable | `SANDBOX_UNAVAILABLE` | permission mode `danger-full-access` |
 | Frontend not mobile-ready | desktop layout, small touch targets | `apply-frontend.sh` injects mobile CSS/JS |
+| Web Crypto API missing over LAN HTTP | `crypto.randomUUID is not a function` | inject a UUID v4 fallback based on `crypto.getRandomValues()` |
 | Lag re-entering / switching back with big context | cold re-entry and app-return stall for seconds | `apply-js-patches.sh`: slim history windows (chunk-stream filter + big-result truncation) + incremental reconnect sync (keep window, quiet catch-up) |
 | Page reload re-downloads JS | ~4.7MB bundles re-fetched every refresh | immutable cache headers on static assets & plugin bundles |
 
@@ -153,6 +156,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 
 - **Blank screen / cannot open**: make sure it's Termux; check `~/dsh/storage/dsh.log`.
 - **`AbortSignal.any is not a function`**: old browser; `apply-frontend.sh` injects a polyfill.
+- **`crypto.randomUUID is not a function`**: LAN HTTP and older WebViews may not expose the API; `apply-frontend.sh` injects a secure UUID v4 fallback.
 - **Model not responding**: check the API Key in Models page and `~/.dsh/.credentials.yaml`.
 - **Reinstall / new device**: re-run `bash setup.sh`.
 
