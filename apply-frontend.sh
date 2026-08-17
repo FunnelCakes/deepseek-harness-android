@@ -8,6 +8,9 @@
 #   3. 移动端 JS（来自 patches/mobile.js）：AbortSignal.any polyfill、
 #      tooltip 气泡重吸附、触摸松手销毁、抽屉点击遮罩关闭、
 #      子代理下拉/上下文用量面板的 fixed 视口内重定位
+#   4. manifest display: fullscreen → standalone（PWA 键盘跟随必需）：
+#      fullscreen 沉浸模式下键盘弹出不收缩视口、无几何信号，composer 被盖住；
+#      standalone 恢复系统栏与正常键盘行为，输入框随键盘上移（实测验证）。
 # 幂等：已注入且内容一致则跳过；patches 内容变化时原地刷新，无需先删旧标签。
 # =============================================================================
 set -euo pipefail
@@ -88,5 +91,18 @@ if changed:
 else:
     print('  无改动（可能已全部应用）')
 PY
+
+# 4) manifest: display fullscreen → standalone（PWA 键盘跟随必需，幂等）
+MANIFEST="$(dirname "$HTML")/manifest.webmanifest"
+if [ -f "$MANIFEST" ]; then
+  if grep -q '"display": "fullscreen"' "$MANIFEST"; then
+    sed -i 's/"display": "fullscreen"/"display": "standalone"/' "$MANIFEST"
+    echo "  [ok]   manifest display: fullscreen -> standalone（PWA 键盘跟随必需）"
+  else
+    echo "  [skip] manifest display 已是 standalone 或格式未知"
+  fi
+else
+  echo "  [skip] 未找到 manifest.webmanifest"
+fi
 
 echo "[apply-frontend] 完成。重启 dsh 服务后生效：bash ~/dsh/stop_dsh.sh && bash ~/dsh/start_dsh.sh"

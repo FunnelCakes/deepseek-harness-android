@@ -260,80 +260,40 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
   } catch (e) {}
 })();
 
-/* ---- 8) 软键盘跟随：键盘弹出时输入框上移不被遮挡，收回时恢复（QQ 式） ----
+/* ---- 8) 软键盘跟随：键盘弹出时输入框上移不被遮挡，收回时恢复 ----
  * 布局是 html/body/#root height:100% 的百分比链，作曲栏 position:sticky;bottom:0。
- * 三重信号，覆盖浏览器标签页与 Chrome 安装的桌面应用（standalone/PWA）：
- *   1) navigator.virtualKeyboard（Chrome 94+）：geometrychange 给出键盘精确几何，
- *      以其 boundingRect 计算遮挡高度；浏览器默认 overlayContent=false 会自行收缩
- *      布局视口（此时 kb≈0，本段不介入，原生重排已够）；
- *   2) window.visualViewport：老 WebView/悬浮键盘下布局视口不收缩，视觉视口被键盘
- *      压缩，kb = innerHeight - vv.height；
- *   3) 输入框聚焦期间 150ms 轮询兜底：覆盖 PWA 里上述事件不触发的场景。
- * 命中后把根容器高度压到可视高度，整页（含输入框）抬到键盘上方；键盘收回时还原。
- * 阈值 80px 区分键盘与地址栏伸缩/旋转。 */
+ * 支持 interactive-widget=resizes-content 的 WebView 会自行收缩布局视口
+ * （此时 innerHeight≈vv.height，kb≈0，本段不介入）；老 WebView / 悬浮键盘不收缩，
+ * 视觉视口被键盘压缩，这里把根容器高度压到 visualViewport.height，整页（含输入框）
+ * 抬到键盘上方；键盘收回时还原。阈值 80px 区分键盘与地址栏伸缩/旋转。 */
 (function () {
   "use strict";
-  if (typeof window === "undefined") return;
-  var vv = window.visualViewport || null;
-  var vk = (typeof navigator !== "undefined" && navigator.virtualKeyboard) || null;
+  if (typeof window === "undefined" || !window.visualViewport) return;
+  var vv = window.visualViewport;
   var KB_MIN = 80;
-  var raf = 0, cur = 0, timer = 0, armed = false;
+  var raf = 0, cur = 0;
 
-  function kbHeight() {
-    if (vk && vk.boundingRect && vk.boundingRect.top > 0 && vk.boundingRect.height >= KB_MIN) {
-      return Math.max(0, window.innerHeight - vk.boundingRect.top);
-    }
-    if (vv) return Math.max(0, window.innerHeight - vv.height);
-    return 0;
-  }
-  function visibleHeight(kb) {
-    if (vv) return vv.height;
-    return Math.max(0, window.innerHeight - kb);
-  }
   function sync() {
     raf = 0;
-    var kb = kbHeight();
+    var kb = Math.max(0, window.innerHeight - vv.height);
     if (Math.abs(kb - cur) < 2) return;      /* 抖动过滤 */
     cur = kb;
     var html = document.documentElement;
     if (kb >= KB_MIN) {
-      html.style.height = visibleHeight(kb) + "px";  /* 键盘弹出：根容器压到可视高度 */
+      html.style.height = vv.height + "px";  /* 键盘弹出：根容器压到可视高度，输入框随之抬起 */
       html.setAttribute("data-dsh-kb-open", "1");
       html.style.setProperty("--dsh-kb", kb + "px");
-      try { window.scrollTo(0, 0); } catch (e) {}    /* 抵消浏览器把页面 pan 出可视区 */
+      try { window.scrollTo(0, 0); } catch (e) {}  /* 抵消浏览器把页面 pan 出可视区 */
     } else {
       html.style.height = "";                /* 键盘收回：恢复原本状态 */
       html.removeAttribute("data-dsh-kb-open");
       html.style.removeProperty("--dsh-kb");
     }
   }
+
   function schedule() { if (!raf) raf = requestAnimationFrame(sync); }
-
-  if (vv) {
-    vv.addEventListener("resize", schedule);
-    vv.addEventListener("scroll", schedule);
-  }
+  vv.addEventListener("resize", schedule);
+  vv.addEventListener("scroll", schedule);
   window.addEventListener("resize", schedule);
-  if (vk && typeof vk.addEventListener === "function") vk.addEventListener("geometrychange", schedule);
-
-  /* 兜底：输入框/输入区聚焦期间轮询（PWA 里 vv 事件可能不触发） */
-  function isEditable(t) {
-    if (!t || t.nodeType !== 1) return false;
-    var n = t.nodeName;
-    return n === "TEXTAREA" || n === "INPUT" || !!t.isContentEditable;
-  }
-  document.addEventListener("focusin", function (e) {
-    if (!isEditable(e.target)) return;
-    armed = true;
-    if (!timer) timer = setInterval(sync, 150);
-  }, true);
-  document.addEventListener("focusout", function (e) {
-    if (!isEditable(e.target)) return;
-    armed = false;
-    if (timer) { clearInterval(timer); timer = 0; }
-    schedule();                                /* 立即可视视口同步 */
-    setTimeout(schedule, 300);                 /* 收键盘动画后再确认一次 */
-  }, true);
-
   sync();
 })();
