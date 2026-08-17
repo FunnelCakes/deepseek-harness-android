@@ -222,3 +222,10 @@
     z-index: 100 !important;
   }
 }
+
+/* 软键盘弹出时（html[data-dsh-kb-open] 由 mobile.js 第 8 段设置）：
+   贴底的悬浮面板（用量/上下文仪表）随键盘上移，避免被键盘遮挡；
+   其余以 top 锚定的菜单在键盘弹出时位于可视区上方，不受影响。 */
+html[data-dsh-kb-open] .JObwrW_panel {
+  bottom: calc(64px + var(--dsh-kb, 0px)) !important;
+}
