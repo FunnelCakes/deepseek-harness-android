@@ -84,7 +84,48 @@ fi
 
 # ------------------------------------------------------------- 3/8 正式安装
 info "3/8 用 android30 编译目标正式安装 dsh（下载依赖+原生编译，可能需要 5~15 分钟，请耐心等待，不要中断）"
-CFLAGS="-target aarch64-linux-android30" CXXFLAGS="-target aarch64-linux-android30" \
+# 处理 koffi 编译的 <spawn.h> 问题（Issue #4）：-target aarch64-linux-android30 会让 clang
+# 改用 Android NDK sysroot 头文件路径，可能找不到 Termux 的 /usr/include 里的 spawn.h。
+# 修复：显式加入 $PREFIX/include（含权限可读的 include 路径）；若 spawn.h 缺失则写入
+# bionic 兼容 shim 并加入 include 路径，shim 权限设为 644 确保可读。
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+EXTRA_FLAGS="-target aarch64-linux-android30 -I$PREFIX/include"
+if [ ! -f "$PREFIX/include/spawn.h" ]; then
+  warn "缺少 $PREFIX/include/spawn.h，写入 bionic 兼容 shim（Issue #4）"
+  SPHIM_DIR="$(mktemp -d)"
+  cat > "$SPHIM_DIR/spawn.h" <<'SPAWN_SHIM'
+/* bionic 兼容 spawn.h shim（Issue #4：koffi 编译缺 <spawn.h>） */
+#ifndef _TERMUX_SPAWN_SHIM_H
+#define _TERMUX_SPAWN_SHIM_H
+#include <sys/types.h>
+#include <signal.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+#define POSIX_SPAWN_RESETIDS   0x01
+#define POSIX_SPAWN_SETPGROUP  0x02
+#define POSIX_SPAWN_SETSIGDEF  0x04
+#define POSIX_SPAWN_SETSIGMASK 0x08
+typedef struct { short __flags; pid_t __pgrp; sigset_t __setsigdef, __setsigmask; } posix_spawnattr_t;
+typedef struct __posix_spawn_file_actions_entry {
+  int __action; int __fd; int __newfd; char __path[1];
+} __posix_spawn_file_actions_entry;
+typedef struct { int __allocated; int __used; __posix_spawn_file_actions_entry *__actions; } posix_spawn_file_actions_t;
+int posix_spawn(pid_t *__restrict, const char *__restrict,
+                const posix_spawn_file_actions_t *, const posix_spawnattr_t *__restrict,
+                char *const __restrict[], char *const __restrict[]);
+int posix_spawn_file_actions_init(posix_spawn_file_actions_t *);
+int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *);
+int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *, int, int);
+#ifdef __cplusplus
+}
+#endif
+#endif
+SPAWN_SHIM
+  chmod 644 "$SPHIM_DIR/spawn.h"
+  EXTRA_FLAGS="$EXTRA_FLAGS -I$SPHIM_DIR"
+fi
+CFLAGS="$EXTRA_FLAGS" CXXFLAGS="$EXTRA_FLAGS" \
   npm install -g --allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs "$DSH_NPM"
 "$DSH_DIR/node_modules/node-pty/build/Release/pty.node" 2>/dev/null || true
 test -f "$DSH_DIR/node_modules/node-pty/build/Release/pty.node" && ok "node-pty 编译产物就位"
