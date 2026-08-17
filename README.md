@@ -118,7 +118,7 @@ cd deepseek-harness-android
 bash setup.sh
 ```
 
-> 🇨🇳 **China users**: `setup.sh` auto-detects slow npm / nodejs.org and **switches to the npmmirror mirror** (session-only, doesn't change your global config). If `git clone` is slow or times out, enable a proxy/TUN first, or clone via a mirror (e.g. `https://gitclone.com/github.com/FunnelCakes/deepseek-harness-android.git`).
+> `setup.sh` auto-detects slow npm / nodejs.org and switches to the npmmirror mirror when needed (session-only, doesn't change your global config).
 
 ### 3. Usage
 
