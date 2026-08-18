@@ -4,6 +4,9 @@
 >
 > 点击下方语言标题切换 · Click a language below to view its README.
 
+> [!IMPORTANT]
+> **当前最高支持 deepseek-harness rc.7**，向下兼容 rc.6 及更早版本。
+
 ---
 
 <details open>
