@@ -55,6 +55,7 @@ bash ~/dsh/stop_dsh.sh    # 停止
 | `link()` 被禁（SELinux） | 会话/附件保存、write 工具新建文件报 `EACCES` | 会话/附件发布改 `rename()`；write 新建文件回退"O_EXCL 占位+rename"；附件祖先遍历/清理容忍（`patches/patch-dsh-android-link.js`，幂等） |
 | PTY 终端检测失败 | `unsupported on platform android` | subprocess 把 android 视同 linux |
 | sharp 无法加载 | `Could not load sharp module` | 安装 `@img/sharp-wasm32` wasm 回退 |
+| grep/glob 工具报 `ripgrep launch failed` | `@vscode/ripgrep` 没有 Android 平台预编译包 | `apply-rg-fix.sh`：符号链接到系统 `rg` + `resolveRgPath()` 回退（setup.sh 自动执行） |
 | HMR 启动崩溃 | `--expose-internals is required` | 包装脚本加 `--expose-internals` |
 | bash 工具不可用 | `SANDBOX_UNAVAILABLE` | 权限模式设 `danger-full-access` |
 | 前端不适配竖屏 | 桌面布局、触控目标小等 | `apply-frontend.sh` 注入移动端 CSS/JS |
@@ -144,6 +145,7 @@ Open <http://127.0.0.1:3080>, enter your **DeepSeek API Key** in the **Models** 
 | `link()` blocked (SELinux) | `EACCES` saving sessions/attachments, and when `write` tool creates a new file | session/attachment publish uses `rename()`; new-file write falls back to "O_EXCL reserve + rename"; attachment ancestor-walk & cleanup tolerate EACCES/ENOENT (`patches/patch-dsh-android-link.js`, idempotent) |
 | PTY terminal detection fails | `unsupported on platform android` | treat android as linux in subprocess |
 | sharp fails to load | `Could not load sharp module` | install `@img/sharp-wasm32` wasm fallback |
+| grep/glob report `ripgrep launch failed` | no Android prebuilt binary from `@vscode/ripgrep` | `apply-rg-fix.sh`: symlink to system `rg` + `resolveRgPath()` fallback (run automatically by setup.sh) |
 | HMR crashes on start | `--expose-internals is required` | wrapper script adds `--expose-internals` |
 | bash tool unavailable | `SANDBOX_UNAVAILABLE` | permission mode `danger-full-access` |
 | Frontend not mobile-ready | desktop layout, small touch targets | `apply-frontend.sh` injects mobile CSS/JS |

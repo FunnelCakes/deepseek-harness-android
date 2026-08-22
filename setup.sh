@@ -34,7 +34,7 @@ INSTALL_DIR="$HOME/dsh"
 # ---------------------------------------------------------------- 1/8 依赖
 info "1/8 安装构建依赖 (cmake clang make binutils pkg-config python nodejs)"
 pkg update -y >/dev/null 2>&1 || true
-pkg install -y cmake clang make binutils pkg-config python nodejs
+pkg install -y cmake clang make binutils pkg-config python nodejs ripgrep
 
 command -v node >/dev/null 2>&1 || { warn "node 未安装，重试安装 nodejs..."; pkg install -y nodejs; }
 NODE_VER="$(node -v | sed 's/^v//')"
@@ -248,6 +248,20 @@ if s.count(old) != 1:
 open(p, 'w', encoding='utf-8').write(s.replace(old, new))
 print("  patched client-ui-conversation (Enter=newline, Ctrl+Enter=send)")
 PY
+fi
+
+# 4f: grep/glob ripgrep 修复（dsh-rg-fix）
+# npm install 会清空 dsh 的 node_modules，@vscode/ripgrep 的 Android 平台包
+# 在 Termux 上本来就不存在；每次 setup.sh 更新 dsh 后都必须重新应用：
+#   1) @vscode/ripgrep-android-arm64/bin/rg -> 系统 rg
+#   2) dsh-tool-fs-search resolveRgPath() 回退到系统 rg
+# 脚本幂等，可重复执行；若中途失败会中断 setup（避免带病启动）。
+RG_FIX="$SCRIPT_DIR/apply-rg-fix.sh"
+if [ -f "$RG_FIX" ]; then
+  info "4f/8 应用 grep/glob ripgrep 修复（dsh-rg-fix）"
+  bash "$RG_FIX"
+else
+  warn "  缺少 apply-rg-fix.sh，跳过 grep/glob ripgrep 修复"
 fi
 
 # ------------------------------------------------------ 5/8 sharp wasm 回退
